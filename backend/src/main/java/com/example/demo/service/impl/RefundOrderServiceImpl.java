@@ -144,9 +144,17 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
             order.setStatus(4);
             orderMapper.updateById(order);
 
-            rollbackStock(refundOrder.getOrderId());
-
-            stockReservationService.releaseReservations(order.getId(), "退款审核通过，库存回滚");
+            Integer originalStatus = refundOrder.getOriginalOrderStatus();
+            if (originalStatus != null && originalStatus == 3) {
+                rollbackStock(refundOrder.getOrderId());
+                stockReservationService.releaseReservations(order.getId(), "退款审核通过，库存回滚");
+                log.info("退款审核通过，回滚已扣减库存: refundId={}, orderId={}",
+                        dto.getRefundId(), refundOrder.getOrderId());
+            } else {
+                stockReservationService.releaseReservations(order.getId(), "退款审核通过，释放预占库存");
+                log.info("退款审核通过，释放预占库存（未扣减总库存）: refundId={}, orderId={}",
+                        dto.getRefundId(), refundOrder.getOrderId());
+            }
 
             notificationService.sendOrderStatusNotification(order.getUserId(), order.getId(), oldStatus, 4);
 

@@ -1619,6 +1619,122 @@ const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger',
 
 ---
 
+### 修复 #15：退款审核通过时错误回滚未扣减的库存
+
+**问题描述**：退款申请审核通过时，无论订单是否已经确认收货，都会执行 `rollbackStock()` 方法将商品总库存 `stock` 增加。对于还未确认收货的订单（状态为"已支付"或"已发货"），库存从未被实际扣减过，此时增加总库存会导致库存数量虚高。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+[RefundOrderServiceImpl.java](backend/src/main/java/com/example/demo/service/impl/RefundOrderServiceImpl.java#L140-L157) 的 `auditRefund` 方法中，审核通过分支无条件执行了 `rollbackStock()` 和 `releaseReservations()`，没有根据订单原始状态区分处理。
+
+**正确的库存流转逻辑**：
+```
+下单（状态0→1）：
+  reserved_stock += 数量 （预占）
+  stock 不变
+
+确认收货（状态2→3）：
+  stock -= 数量         （实际扣减总库存）
+  reserved_stock -= 数量 （同时释放预占）
+
+退款审核通过时：
+  原始状态=1或2（未确认收货）：
+    → 只需要释放预占：reserved_stock -= 数量
+    → stock 不变（因为从未扣减过）
+  原始状态=3（已确认收货）：
+    → 需要回滚库存：stock += 数量
+    → 同时释放预占（如果还有的话）
+```
+
+**影响范围**：退款管理模块 - 审核通过时的库存处理逻辑（可能导致库存数量不准确）
+
+**修复方案**：
+
+#### 1. 后端修复 - 根据原始订单状态判断是否回滚库存
+
+**文件**：[backend/src/main/java/com/example/demo/service/impl/RefundOrderServiceImpl.java](backend/src/main/java/com/example/demo/service/impl/RefundOrderServiceImpl.java#L140-L163)
+
+**修复内容**：
+
+```java
+// 修复前
+if (dto.getApproved()) {
+    refundOrder.setStatus(RefundStatusEnum.APPROVED.getCode());
+
+    Integer oldStatus = order.getStatus();
+    order.setStatus(4);
+    orderMapper.updateById(order);
+
+    rollbackStock(refundOrder.getOrderId());  // 无条件执行，错误！
+
+    stockReservationService.releaseReservations(order.getId(), "退款审核通过，库存回滚");
+
+    notificationService.sendOrderStatusNotification(...);
+    log.info("退款审核通过...");
+}
+
+// 修复后
+if (dto.getApproved()) {
+    refundOrder.setStatus(RefundStatusEnum.APPROVED.getCode());
+
+    Integer oldStatus = order.getStatus();
+    order.setStatus(4);
+    orderMapper.updateById(order);
+
+    // 根据原始订单状态决定是否回滚总库存
+    Integer originalStatus = refundOrder.getOriginalOrderStatus();
+    if (originalStatus != null && originalStatus == 3) {
+        // 已确认收货的订单：需要回滚总库存 + 释放预占
+        rollbackStock(refundOrder.getOrderId());
+        stockReservationService.releaseReservations(order.getId(), "退款审核通过，库存回滚");
+        log.info("退款审核通过，回滚已扣减库存: refundId={}, orderId={}",
+                dto.getRefundId(), refundOrder.getOrderId());
+    } else {
+        // 未确认收货的订单：只释放预占，不回滚总库存
+        stockReservationService.releaseReservations(order.getId(), "退款审核通过，释放预占库存");
+        log.info("退款审核通过，释放预占库存（未扣减总库存）: refundId={}, orderId={}",
+                dto.getRefundId(), refundOrder.getOrderId());
+    }
+
+    notificationService.sendOrderStatusNotification(order.getUserId(), order.getId(), oldStatus, 4);
+    log.info("退款审核通过: refundId={}, orderId={}, userId={}",
+            dto.getRefundId(), refundOrder.getOrderId(), refundOrder.getUserId());
+}
+```
+
+**关键点**：
+- 使用 `refundOrder.getOriginalOrderStatus()` 获取申请退款前的订单原始状态
+- 原始状态 = 3（已完成）：说明库存已被确认收货时扣减，需要回滚
+- 原始状态 = 1或2（已支付/已发货）：说明库存还未扣减，只需要释放预占
+- 两种情况都需要调用 `releaseReservations()` 确保预占记录被正确标记为已释放
+- 不同场景使用不同的日志信息和释放原因，便于排查问题
+
+**修复验证**：
+1. 执行 `mvn compile` 确认后端编译成功
+2. 启动后端和前端服务
+3. **测试场景1：未确认收货的订单退款**
+   - 登录普通用户，创建订单（状态变为"已支付"=1）
+   - 记录商品当前的 `stock` 和 `reserved_stock` 值
+   - 进入订单详情页，申请退款
+   - 登录管理员，进入退款管理，审核通过
+   - **验证**：商品 `stock` 值**不变**（正确！）
+   - **验证**：商品 `reserved_stock` 值减少对应数量（正确！）
+   - **验证**：库存预占记录状态变为"已释放"，释放原因为"退款审核通过，释放预占库存"
+4. **测试场景2：已确认收货的订单退款**
+   - 登录普通用户，创建订单（状态=1）
+   - 将订单状态依次改为"已发货"（2）→"已完成"（3）
+   - 记录商品当前的 `stock` 和 `reserved_stock` 值（此时 `reserved_stock` 应为0）
+   - 进入订单详情页，申请退款
+   - 登录管理员，进入退款管理，审核通过
+   - **验证**：商品 `stock` 值**增加**对应数量（正确！回滚了已扣减的库存）
+   - **验证**：库存预占记录状态变为"已释放"，释放原因为"退款审核通过，库存回滚"
+5. 确认两种场景下订单状态都正确变为"已取消"
+6. 确认用户都收到了退款成功通知
+7. 确认日志输出正确，可区分两种不同的处理场景
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题
