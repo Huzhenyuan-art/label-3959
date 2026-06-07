@@ -303,6 +303,81 @@ import java.util.List;
 
 ---
 
+### 修复 #6：优惠券页面 API 请求路径重复（api/api/...）
+
+**问题描述**：用户进入「优惠券中心」和「我的优惠券」页面时，浏览器控制台报错 `No static resource api/api/coupons/...`，页面无法正常加载数据。错误信息显示请求路径中出现了重复的 `api` 前缀。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+- 前端 API 配置文件 `index.js` 中已设置 `baseURL: '/api'`，会自动为所有请求添加 `/api` 前缀
+- 但 `coupon.js` 中所有 API 方法的 `url` 参数又额外添加了 `/api/` 前缀（如 `/api/coupons/templates/available`）
+- 导致实际请求路径变为 `/api/api/coupons/...`，与后端接口路径 `/api/coupons/...` 不匹配
+- 其他 API 文件（`product.js`、`order.js`、`user.js` 等）的 URL 都是正确的，没有多余的 `/api/` 前缀
+
+**影响范围**：优惠券模块 - 所有页面（优惠券中心、我的优惠券）
+
+**修复方案**：
+
+#### 1. 前端修复
+**文件**：[frontend/src/api/coupon.js](frontend/src/api/coupon.js)
+
+**修复内容**：
+将 `coupon.js` 中所有 API 方法的 `url` 参数去掉 `/api` 前缀，共涉及 10 处修改：
+
+| 方法 | 修复前 | 修复后 |
+|------|--------|--------|
+| createCouponTemplate | `/api/coupons/templates` | `/coupons/templates` |
+| getCouponTemplates | `/api/coupons/templates/page` | `/coupons/templates/page` |
+| getAvailableTemplates | `/api/coupons/templates/available` | `/coupons/templates/available` |
+| updateTemplateStatus | `/api/coupons/templates/${id}/status` | `/coupons/templates/${id}/status` |
+| receiveCoupon | `/api/coupons/templates/${templateId}/receive` | `/coupons/templates/${templateId}/receive` |
+| getMyCoupons | `/api/coupons/my` | `/coupons/my` |
+| getMyCouponDetail | `/api/coupons/my/${id}` | `/coupons/my/${id}` |
+| getAvailableCouponsForOrder | `/api/coupons/my/available-for-order` | `/coupons/my/available-for-order` |
+| calculateDiscount | `/api/coupons/${userCouponId}/calculate` | `/coupons/${userCouponId}/calculate` |
+
+**修改示例**：
+```javascript
+// 修复前
+export const getAvailableTemplates = () => {
+  return request({
+    url: '/api/coupons/templates/available',
+    method: 'get'
+  })
+}
+
+// 修复后
+export const getAvailableTemplates = () => {
+  return request({
+    url: '/coupons/templates/available',
+    method: 'get'
+  })
+}
+```
+
+**关键点**：
+- `axios.create({ baseURL: '/api' })` 会自动为所有请求 URL 添加 `/api` 前缀
+- API 文件中的 URL 应该是相对路径，不包含 `/api` 前缀
+- 修复后实际请求路径为 `/api` + `/coupons/...` = `/api/coupons/...`，与后端接口匹配
+- 必须修改所有 10 个 API 方法的 URL，不能遗漏
+
+**修复验证**：
+1. 启动前端和后端服务
+2. 使用普通用户账号登录系统
+3. 点击左侧菜单「优惠券中心」
+4. 确认页面正常加载，显示可领取优惠券列表，无控制台错误
+5. 点击「我的优惠券」
+6. 确认页面正常加载，显示用户优惠券列表，无控制台错误
+7. 打开浏览器开发者工具（F12）→ Network 面板
+8. 刷新优惠券中心页面，确认请求 URL 为 `/api/coupons/templates/available`（正确）
+9. 确认不是 `/api/api/coupons/templates/available`（错误）
+10. 测试优惠券领取功能，确认请求正常发送
+11. 测试我的优惠券筛选功能，确认请求 URL 正确
+12. 确认其他模块（商品、订单、用户等）的 API 请求不受影响
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题
