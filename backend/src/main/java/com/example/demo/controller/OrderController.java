@@ -28,8 +28,10 @@ public class OrderController {
     public Result<IPage<OrderDetailDTO>> page(@RequestParam(defaultValue = "1") int current,
                                               @RequestParam(defaultValue = "10") int size,
                                               @RequestParam(required = false) String username,
-                                              @RequestParam(required = false) Integer status) {
-        return Result.ok(orderService.pageOrders(current, size, username, status));
+                                              @RequestParam(required = false) Integer status,
+                                              @RequestParam(required = false) String createdTimeStart,
+                                              @RequestParam(required = false) String createdTimeEnd) {
+        return Result.ok(orderService.pageOrders(current, size, username, status, createdTimeStart, createdTimeEnd));
     }
 
     /** 订单详情（联查用户、明细、商品） */

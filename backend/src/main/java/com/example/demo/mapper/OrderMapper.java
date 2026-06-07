@@ -19,7 +19,9 @@ public interface OrderMapper extends BaseMapper<Order> {
     IPage<OrderDetailDTO> selectOrderPage(Page<OrderDetailDTO> page,
                                           @Param("username") String username,
                                           @Param("status") Integer status,
-                                          @Param("userId") Long userId);
+                                          @Param("userId") Long userId,
+                                          @Param("createdTimeStart") String createdTimeStart,
+                                          @Param("createdTimeEnd") String createdTimeEnd);
 
     /**
      * 查询订单详情（联查用户、订单明细、商品信息）

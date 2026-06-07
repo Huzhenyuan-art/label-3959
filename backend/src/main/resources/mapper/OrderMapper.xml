@@ -101,6 +101,12 @@
             <if test="userId != null">
                 AND o.user_id = #{userId}
             </if>
+            <if test="createdTimeStart != null and createdTimeStart != ''">
+                AND o.created_time >= #{createdTimeStart}
+            </if>
+            <if test="createdTimeEnd != null and createdTimeEnd != ''">
+                AND o.created_time &lt;= #{createdTimeEnd}
+            </if>
         </where>
         ORDER BY o.created_time DESC
     </select>

@@ -42,10 +42,10 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private static final int RESERVATION_EXPIRE_MINUTES = 30;
 
     @Override
-    public IPage<OrderDetailDTO> pageOrders(int current, int size, String username, Integer status) {
+    public IPage<OrderDetailDTO> pageOrders(int current, int size, String username, Integer status, String createdTimeStart, String createdTimeEnd) {
         Long currentUserId = SecurityUtil.isAdmin() ? null : SecurityUtil.getCurrentUserId();
         Page<OrderDetailDTO> page = new Page<>(current, size);
-        return orderMapper.selectOrderPage(page, username, status, currentUserId);
+        return orderMapper.selectOrderPage(page, username, status, currentUserId, createdTimeStart, createdTimeEnd);
     }
 
     @Override

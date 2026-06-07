@@ -17,6 +17,16 @@
           <el-select v-model="query.status" placeholder="订单状态" clearable style="width:140px">
             <el-option v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
           </el-select>
+          <el-date-picker
+            v-model="query.createdTimeRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            style="width:280px"
+            @change="loadData"
+          />
           <el-button type="primary" :icon="Search" @click="loadData">搜索</el-button>
           <el-button @click="resetQuery">重置</el-button>
         </div>
@@ -148,7 +158,7 @@ const createDialogVisible = ref(false)
 const statusDialogVisible = ref(false)
 const createFormRef = ref()
 
-const query = reactive({ current: 1, size: 10, username: '', status: null })
+const query = reactive({ current: 1, size: 10, username: '', status: null, createdTimeRange: [] })
 
 const createForm = reactive({
   userId: null,
@@ -175,7 +185,14 @@ const calcTotal = computed(() =>
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getOrderPage({ ...query, status: query.status ?? undefined })
+    const params = {
+      ...query,
+      status: query.status ?? undefined,
+      createdTimeStart: query.createdTimeRange?.[0] ?? undefined,
+      createdTimeEnd: query.createdTimeRange?.[1] ?? undefined
+    }
+    delete params.createdTimeRange
+    const res = await getOrderPage(params)
     tableData.value = res.data.records
     total.value = res.data.total
   } finally {
@@ -186,6 +203,7 @@ const loadData = async () => {
 const resetQuery = () => {
   query.username = ''
   query.status = null
+  query.createdTimeRange = []
   query.current = 1
   loadData()
 }

@@ -10,7 +10,7 @@ import java.util.List;
 
 public interface OrderService extends IService<Order> {
 
-    IPage<OrderDetailDTO> pageOrders(int current, int size, String username, Integer status);
+    IPage<OrderDetailDTO> pageOrders(int current, int size, String username, Integer status, String createdTimeStart, String createdTimeEnd);
 
     OrderDetailDTO getOrderDetail(Long id);
 
