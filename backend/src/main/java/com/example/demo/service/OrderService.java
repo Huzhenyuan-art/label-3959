@@ -19,4 +19,6 @@ public interface OrderService extends IService<Order> {
     void updateOrderStatus(Long id, Integer status, Integer version);
 
     void processRefund(Long id, boolean success, String reason);
+
+    void updateRemark(Long id, String remark, Integer version);
 }

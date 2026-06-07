@@ -199,6 +199,26 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         log.info("处理订单退款: id={}, success={}, reason={}", id, success, reason);
     }
 
+    @Override
+    public void updateRemark(Long id, String remark, Integer version) {
+        Order existingOrder = getById(id);
+        if (existingOrder == null) {
+            throw new IllegalArgumentException("订单不存在: " + id);
+        }
+        if (!SecurityUtil.isAdmin() && !existingOrder.getUserId().equals(SecurityUtil.getCurrentUserId())) {
+            throw new SecurityException("无权修改他人订单备注");
+        }
+        Order order = new Order();
+        order.setId(id);
+        order.setRemark(remark);
+        order.setVersion(version);
+        boolean success = updateById(order);
+        if (!success) {
+            throw new IllegalArgumentException("更新失败，订单数据已变更，请刷新后重试（乐观锁冲突）");
+        }
+        log.info("更新订单备注: id={}, oldRemark={}, newRemark={}", id, existingOrder.getRemark(), remark);
+    }
+
     private String buildFullAddress(UserAddress address) {
         StringBuilder sb = new StringBuilder();
         if (address.getProvince() != null && !address.getProvince().isEmpty()) {

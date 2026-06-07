@@ -62,6 +62,14 @@ public class OrderController {
         return Result.ok();
     }
 
+    /** 更新订单备注（独立编辑，仅更新备注字段，走乐观锁） */
+    @PutMapping("/{id}/remark")
+    public Result<Void> updateRemark(@PathVariable Long id,
+                                     @RequestBody UpdateRemarkRequest req) {
+        orderService.updateRemark(id, req.getRemark(), req.getVersion());
+        return Result.ok();
+    }
+
     @Data
     public static class CreateOrderRequest {
         private Order order;
@@ -80,5 +88,11 @@ public class OrderController {
     public static class ProcessRefundRequest {
         private boolean success;
         private String reason;
+    }
+
+    @Data
+    public static class UpdateRemarkRequest {
+        private String remark;
+        private Integer version;
     }
 }

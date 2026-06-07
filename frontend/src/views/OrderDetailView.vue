@@ -35,7 +35,40 @@
               <el-descriptions-item label="乐观锁版本">
                 <el-tag type="info">v{{ order.version }}</el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="备注">{{ order.remark || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="备注">
+                <template v-if="!remarkEditing">
+                  <span>{{ order.remark || '-' }}</span>
+                  <el-button
+                    type="primary"
+                    link
+                    size="small"
+                    class="ml-8"
+                    @click="startEditRemark">
+                    编辑
+                  </el-button>
+                </template>
+                <template v-else>
+                  <el-input
+                    v-model="editRemark"
+                    type="textarea"
+                    :rows="2"
+                    placeholder="请输入备注"
+                    maxlength="200"
+                    show-word-limit
+                    style="width: 100%"
+                  />
+                  <div style="margin-top: 8px; text-align: right">
+                    <el-button size="small" @click="cancelEditRemark">取消</el-button>
+                    <el-button
+                      type="primary"
+                      size="small"
+                      :loading="remarkSaving"
+                      @click="saveRemark">
+                      保存
+                    </el-button>
+                  </div>
+                </template>
+              </el-descriptions-item>
               <el-descriptions-item label="创建时间">{{ formatTime(order.createdTime) }}</el-descriptions-item>
               <el-descriptions-item label="更新时间">{{ formatTime(order.updatedTime) }}</el-descriptions-item>
             </el-descriptions>
@@ -271,7 +304,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { getOrderDetail } from '../api/order'
+import { getOrderDetail, updateOrderRemark } from '../api/order'
 import { submitReview, getPendingReviews } from '../api/review'
 import { getStockReservationsByOrderId } from '../api/stockReservation'
 import { getRefundPage } from '../api/refund'
@@ -289,6 +322,9 @@ const reviewSubmitting = ref(false)
 const reviewFormRef = ref()
 const reviewedItems = ref({})
 const pendingRefund = ref(null)
+const remarkEditing = ref(false)
+const remarkSaving = ref(false)
+const editRemark = ref('')
 
 const ratingTexts = ['非常差', '差', '一般', '好', '非常好']
 
@@ -361,6 +397,40 @@ const openReviewDialog = (row) => {
   reviewDialogVisible.value = true
 }
 
+const loadOrderDetail = async () => {
+  const res = await getOrderDetail(route.params.id)
+  order.value = res.data
+}
+
+const startEditRemark = () => {
+  editRemark.value = order.value.remark || ''
+  remarkEditing.value = true
+}
+
+const cancelEditRemark = () => {
+  remarkEditing.value = false
+  editRemark.value = ''
+}
+
+const saveRemark = async () => {
+  remarkSaving.value = true
+  try {
+    await updateOrderRemark(route.params.id, {
+      remark: editRemark.value,
+      version: order.value.version
+    })
+    ElMessage.success('备注更新成功')
+    remarkEditing.value = false
+    await loadOrderDetail()
+    await Promise.all([
+      loadReservations(),
+      order.value.status === 3 ? loadReviewedItems() : Promise.resolve()
+    ])
+  } finally {
+    remarkSaving.value = false
+  }
+}
+
 const handleSubmitReview = async () => {
   await reviewFormRef.value.validate()
   if (!reviewForm.rating || reviewForm.rating < 1 || reviewForm.rating > 5) {
@@ -384,11 +454,11 @@ const handleSubmitReview = async () => {
 
 onMounted(async () => {
   try {
-    const res = await getOrderDetail(route.params.id)
-    order.value = res.data
+    await loadOrderDetail()
     await Promise.all([
       loadReservations(),
-      order.value.status === 3 ? loadReviewedItems() : Promise.resolve()
+      order.value.status === 3 ? loadReviewedItems() : Promise.resolve(),
+      loadPendingRefund()
     ])
   } finally {
     loading.value = false
