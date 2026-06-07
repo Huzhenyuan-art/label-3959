@@ -78,7 +78,7 @@
     <!-- 新建订单弹窗 -->
     <el-dialog v-model="createDialogVisible" title="新建订单（演示事务+批量插入明细）" width="560px">
       <el-form :model="createForm" ref="createFormRef" label-width="100px">
-        <el-form-item label="用户ID" prop="userId" :rules="[{ required: true, message: '请输入用户ID' }]">
+        <el-form-item v-if="isAdmin" label="用户ID" prop="userId" :rules="[{ required: true, message: '请输入用户ID' }]">
           <el-input-number v-model="createForm.userId" :min="1" style="width:100%" />
         </el-form-item>
         <el-form-item label="备注">
@@ -134,8 +134,11 @@ import { ElMessage } from 'element-plus'
 import { Search, Plus, Delete } from '@element-plus/icons-vue'
 import { getOrderPage, createOrder, updateOrderStatus } from '../api/order'
 import { getProductList } from '../api/product'
+import { useAuthStore } from '../store/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const { isAdmin, userInfo } = authStore
 const loading = ref(false)
 const submitting = ref(false)
 const tableData = ref([])
@@ -194,7 +197,7 @@ const openCreate = async () => {
     const res = await getProductList()
     productList.value = res.data
   }
-  createForm.userId = null
+  createForm.userId = isAdmin ? null : userInfo.id
   createForm.remark = ''
   createForm.items = [{ productId: null, productName: '', quantity: 1, price: null }]
   createDialogVisible.value = true
