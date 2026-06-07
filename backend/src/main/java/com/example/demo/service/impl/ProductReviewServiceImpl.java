@@ -16,16 +16,18 @@ import com.example.demo.mapper.ProductReviewMapper;
 import com.example.demo.service.ProductReviewService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductReviewServiceImpl extends ServiceImpl<ProductReviewMapper, ProductReview> implements ProductReviewService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ProductReviewServiceImpl.class);
 
     private final ProductReviewMapper productReviewMapper;
     private final OrderItemMapper orderItemMapper;
@@ -76,7 +78,7 @@ public class ProductReviewServiceImpl extends ServiceImpl<ProductReviewMapper, P
         review.setContent(content);
         save(review);
 
-        log.info("提交评价成功: reviewId={}, productId={}, orderItemId={}, rating={}", review.getId(), review.getProductId(), orderItemId, rating);
+        logger.info("提交评价成功: reviewId={}, productId={}, orderItemId={}, rating={}", review.getId(), review.getProductId(), orderItemId, rating);
         return review;
     }
 

@@ -13,7 +13,8 @@ import com.example.demo.service.CartService;
 import com.example.demo.service.OrderService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +22,11 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements CartService {
+
+    private static final Logger logger = LoggerFactory.getLogger(CartServiceImpl.class);
 
     private final CartMapper cartMapper;
     private final ProductMapper productMapper;
@@ -61,7 +63,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
             }
             existingCart.setQuantity(newQuantity);
             updateById(existingCart);
-            log.info("更新购物车: userId={}, productId={}, quantity={}", userId, productId, newQuantity);
+            logger.info("更新购物车: userId={}, productId={}, quantity={}", userId, productId, newQuantity);
             return existingCart;
         } else {
             Cart cart = new Cart();
@@ -69,7 +71,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
             cart.setProductId(productId);
             cart.setQuantity(quantity);
             save(cart);
-            log.info("添加购物车: userId={}, productId={}, quantity={}", userId, productId, quantity);
+            logger.info("添加购物车: userId={}, productId={}, quantity={}", userId, productId, quantity);
             return cart;
         }
     }
@@ -97,7 +99,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
 
         cart.setQuantity(quantity);
         updateById(cart);
-        log.info("更新购物车数量: id={}, quantity={}", id, quantity);
+        logger.info("更新购物车数量: id={}, quantity={}", id, quantity);
     }
 
     @Override
@@ -112,7 +114,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
             throw new SecurityException("无权操作他人购物车");
         }
         removeById(id);
-        log.info("删除购物车项: id={}", id);
+        logger.info("删除购物车项: id={}", id);
     }
 
     @Override
@@ -122,7 +124,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
         LambdaQueryWrapper<Cart> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Cart::getUserId, userId).in(Cart::getId, ids);
         remove(wrapper);
-        log.info("批量删除购物车项: userId={}, ids={}", userId, ids);
+        logger.info("批量删除购物车项: userId={}, ids={}", userId, ids);
     }
 
     @Override
@@ -172,7 +174,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
 
         batchRemove(cartIds);
 
-        log.info("购物车结算成功: userId={}, orderId={}, itemCount={}", userId, createdOrder.getId(), cartItems.size());
+        logger.info("购物车结算成功: userId={}, orderId={}, itemCount={}", userId, createdOrder.getId(), cartItems.size());
         return createdOrder;
     }
 }

@@ -18,7 +18,8 @@ import com.example.demo.service.OrderService;
 import com.example.demo.service.StockReservationService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,10 +28,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements OrderService {
+
+    private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
@@ -141,7 +143,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         reservationDTO.setItems(reservationItems);
         stockReservationService.createReservations(reservationDTO);
 
-        log.info("创建订单成功: orderId={}, itemCount={}, originalTotal={}, discountAmount={}, finalTotal={}",
+        logger.info("创建订单成功: orderId={}, itemCount={}, originalTotal={}, discountAmount={}, finalTotal={}",
                 order.getId(), items.size(), originalTotal, discountAmount, order.getTotalAmount());
         return order;
     }
@@ -164,24 +166,24 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (!success) {
             throw new IllegalArgumentException("更新失败，订单状态已变更，请刷新后重试（乐观锁冲突）");
         }
-        log.info("更新订单状态: id={}, oldStatus={}, newStatus={}", id, oldStatus, status);
+        logger.info("更新订单状态: id={}, oldStatus={}, newStatus={}", id, oldStatus, status);
 
         if (!oldStatus.equals(status)) {
             notificationService.sendOrderStatusNotification(existingOrder.getUserId(), id, oldStatus, status);
 
             if (status == 4 && existingOrder.getCouponId() != null) {
                 couponService.restoreCoupon(id);
-                log.info("订单已取消，恢复优惠券: orderId={}, userCouponId={}", id, existingOrder.getCouponId());
+                logger.info("订单已取消，恢复优惠券: orderId={}, userCouponId={}", id, existingOrder.getCouponId());
             }
 
             if (status == 4) {
                 stockReservationService.releaseReservations(id, "订单已取消");
-                log.info("订单已取消，释放库存预占: orderId={}", id);
+                logger.info("订单已取消，释放库存预占: orderId={}", id);
             }
 
             if (status == 3) {
                 stockReservationService.deductStock(id);
-                log.info("订单已完成，正式扣减库存: orderId={}", id);
+                logger.info("订单已完成，正式扣减库存: orderId={}", id);
             }
         }
     }
@@ -196,7 +198,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             throw new SecurityException("只有管理员可以处理退款");
         }
         notificationService.sendRefundResultNotification(existingOrder.getUserId(), id, success, reason);
-        log.info("处理订单退款: id={}, success={}, reason={}", id, success, reason);
+        logger.info("处理订单退款: id={}, success={}, reason={}", id, success, reason);
     }
 
     @Override
@@ -216,7 +218,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (!success) {
             throw new IllegalArgumentException("更新失败，订单数据已变更，请刷新后重试（乐观锁冲突）");
         }
-        log.info("更新订单备注: id={}, oldRemark={}, newRemark={}", id, existingOrder.getRemark(), remark);
+        logger.info("更新订单备注: id={}, oldRemark={}, newRemark={}", id, existingOrder.getRemark(), remark);
     }
 
     private String buildFullAddress(UserAddress address) {

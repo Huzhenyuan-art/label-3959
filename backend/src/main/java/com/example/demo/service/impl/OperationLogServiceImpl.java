@@ -9,26 +9,28 @@ import com.example.demo.enums.OperationTypeEnum;
 import com.example.demo.mapper.OperationLogMapper;
 import com.example.demo.service.OperationLogService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OperationLogServiceImpl extends ServiceImpl<OperationLogMapper, OperationLog> implements OperationLogService {
+
+    private static final Logger logger = LoggerFactory.getLogger(OperationLogServiceImpl.class);
 
     @Override
     @Async("auditLogExecutor")
     public void saveLogAsync(OperationLog operationLog) {
         try {
             save(operationLog);
-            log.debug("审计日志保存成功: operationType={}, operator={}", operationLog.getOperationType(), operationLog.getOperatorName());
+            logger.debug("审计日志保存成功: operationType={}, operator={}", operationLog.getOperationType(), operationLog.getOperatorName());
         } catch (Exception e) {
-            log.error("审计日志保存失败", e);
+            logger.error("审计日志保存失败", e);
         }
     }
 

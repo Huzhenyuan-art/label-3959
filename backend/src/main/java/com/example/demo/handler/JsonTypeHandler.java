@@ -8,6 +8,8 @@ import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.MappedJdbcTypes;
 import org.apache.ibatis.type.MappedTypes;
 
+import java.lang.reflect.Field;
+
 @MappedTypes({Object.class})
 @MappedJdbcTypes({JdbcType.VARCHAR})
 public class JsonTypeHandler extends AbstractJsonTypeHandler<Object> {
@@ -16,9 +18,17 @@ public class JsonTypeHandler extends AbstractJsonTypeHandler<Object> {
             .findAndRegisterModules()
             .configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 
+    public JsonTypeHandler(Class<?> type) {
+        super(type);
+    }
+
+    public JsonTypeHandler(Class<?> type, Field field) {
+        super(type, field);
+    }
+
     @SneakyThrows
     @Override
-    protected Object parse(String json) {
+    public Object parse(String json) {
         if (json == null) {
             return null;
         }
@@ -27,7 +37,7 @@ public class JsonTypeHandler extends AbstractJsonTypeHandler<Object> {
 
     @SneakyThrows
     @Override
-    protected String toJson(Object obj) {
+    public String toJson(Object obj) {
         if (obj == null) {
             return null;
         }

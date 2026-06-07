@@ -10,7 +10,8 @@ import com.example.demo.mapper.ProductMapper;
 import com.example.demo.service.NotificationService;
 import com.example.demo.service.ProductService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,10 +25,11 @@ import java.util.stream.Collectors;
  * 商品 Service 实现
  * 演示：分页查询、条件构造器、自定义 SQL 统计
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> implements ProductService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ProductServiceImpl.class);
 
     private static final int STOCK_WARNING_THRESHOLD = 10;
 
@@ -54,7 +56,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     @Override
     public Product createProduct(Product product) {
         save(product);
-        log.info("创建商品: id={}, name={}", product.getId(), product.getName());
+        logger.info("创建商品: id={}, name={}", product.getId(), product.getName());
         checkStockWarning(product);
         return product;
     }
@@ -77,7 +79,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
                     product.getName(),
                     product.getStock()
             );
-            log.info("库存预警已发送: productId={}, name={}, stock={}",
+            logger.info("库存预警已发送: productId={}, name={}, stock={}",
                     product.getId(), product.getName(), product.getStock());
         }
     }
@@ -85,7 +87,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     @Override
     public void deleteProduct(Long id) {
         removeById(id);
-        log.info("删除商品: id={}", id);
+        logger.info("删除商品: id={}", id);
     }
 
     @Override

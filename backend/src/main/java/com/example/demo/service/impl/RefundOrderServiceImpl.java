@@ -20,7 +20,8 @@ import com.example.demo.service.RefundOrderService;
 import com.example.demo.service.StockReservationService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,10 +29,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, RefundOrder> implements RefundOrderService {
+
+    private static final Logger logger = LoggerFactory.getLogger(RefundOrderServiceImpl.class);
 
     private final RefundOrderMapper refundOrderMapper;
     private final OrderMapper orderMapper;
@@ -106,7 +108,7 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
 
         notificationService.sendRefundApplyNotification(currentUserId, dto.getOrderId(), refundNo);
 
-        log.info("用户申请退款成功: refundId={}, orderId={}, userId={}, amount={}, refundNo={}",
+        logger.info("用户申请退款成功: refundId={}, orderId={}, userId={}, amount={}, refundNo={}",
                 refundOrder.getId(), dto.getOrderId(), currentUserId, dto.getRefundAmount(), refundNo);
 
         return refundOrder;
@@ -148,17 +150,17 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
             if (originalStatus != null && originalStatus == 3) {
                 rollbackStock(refundOrder.getOrderId());
                 stockReservationService.releaseReservations(order.getId(), "退款审核通过，库存回滚");
-                log.info("退款审核通过，回滚已扣减库存: refundId={}, orderId={}",
+                logger.info("退款审核通过，回滚已扣减库存: refundId={}, orderId={}",
                         dto.getRefundId(), refundOrder.getOrderId());
             } else {
                 stockReservationService.releaseReservations(order.getId(), "退款审核通过，释放预占库存");
-                log.info("退款审核通过，释放预占库存（未扣减总库存）: refundId={}, orderId={}",
+                logger.info("退款审核通过，释放预占库存（未扣减总库存）: refundId={}, orderId={}",
                         dto.getRefundId(), refundOrder.getOrderId());
             }
 
             notificationService.sendOrderStatusNotification(order.getUserId(), order.getId(), oldStatus, 4);
 
-            log.info("退款审核通过: refundId={}, orderId={}, userId={}",
+            logger.info("退款审核通过: refundId={}, orderId={}, userId={}",
                     dto.getRefundId(), refundOrder.getOrderId(), refundOrder.getUserId());
         } else {
             refundOrder.setStatus(RefundStatusEnum.REJECTED.getCode());
@@ -171,7 +173,7 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
                 notificationService.sendOrderStatusNotification(order.getUserId(), order.getId(), oldStatus, recoverStatus);
             }
 
-            log.info("退款审核拒绝: refundId={}, orderId={}, userId={}, reason={}",
+            logger.info("退款审核拒绝: refundId={}, orderId={}, userId={}, reason={}",
                     dto.getRefundId(), refundOrder.getOrderId(), refundOrder.getUserId(), dto.getAuditRemark());
         }
 
@@ -212,7 +214,7 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
             notificationService.sendOrderStatusNotification(currentUserId, order.getId(), oldStatus, refundOrder.getOriginalOrderStatus());
         }
 
-        log.info("用户取消退款申请: refundId={}, orderId={}", id, refundOrder.getOrderId());
+        logger.info("用户取消退款申请: refundId={}, orderId={}", id, refundOrder.getOrderId());
     }
 
     private void rollbackStock(Long orderId) {
@@ -226,7 +228,7 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
             if (product != null) {
                 product.setStock(product.getStock() + item.getQuantity());
                 productMapper.updateById(product);
-                log.info("库存回滚: productId={}, productName={}, quantity={}",
+                logger.info("库存回滚: productId={}, productName={}, quantity={}",
                         item.getProductId(), item.getProductName(), item.getQuantity());
             }
         }

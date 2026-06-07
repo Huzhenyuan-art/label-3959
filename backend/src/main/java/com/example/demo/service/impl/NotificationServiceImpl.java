@@ -10,14 +10,16 @@ import com.example.demo.mapper.NotificationMapper;
 import com.example.demo.service.NotificationService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Notification> implements NotificationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
     private final NotificationMapper notificationMapper;
 
@@ -39,7 +41,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
         Long userId = SecurityUtil.getCurrentUserId();
         int updated = notificationMapper.markAsRead(id, userId);
         if (updated > 0) {
-            log.info("标记消息已读: id={}, userId={}", id, userId);
+            logger.info("标记消息已读: id={}, userId={}", id, userId);
         }
     }
 
@@ -47,7 +49,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
     public void markAllAsRead() {
         Long userId = SecurityUtil.getCurrentUserId();
         int updated = notificationMapper.markAllAsRead(userId);
-        log.info("标记全部消息已读: userId={}, count={}", userId, updated);
+        logger.info("标记全部消息已读: userId={}, count={}", userId, updated);
     }
 
     @Override
@@ -61,7 +63,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
         notification.setBizType(dto.getBizType());
         notification.setRead(false);
         save(notification);
-        log.info("发送消息: userId={}, type={}, title={}", dto.getUserId(), dto.getType(), dto.getTitle());
+        logger.info("发送消息: userId={}, type={}, title={}", dto.getUserId(), dto.getType(), dto.getTitle());
     }
 
     @Async

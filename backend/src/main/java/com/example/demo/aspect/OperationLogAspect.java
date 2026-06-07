@@ -2,7 +2,6 @@ package com.example.demo.aspect;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.example.demo.annotation.OperationLog;
-import com.example.demo.entity.OperationLog;
 import com.example.demo.enums.OperationTypeEnum;
 import com.example.demo.service.OperationLogService;
 import com.example.demo.util.SecurityUtil;
@@ -129,7 +128,7 @@ public class OperationLogAspect {
     private void saveOperationLog(ProceedingJoinPoint joinPoint, OperationLog operationLogAnnotation,
                                   OperationTypeEnum operationType, Object beforeData, Object result,
                                   Object targetId, Throwable throwable, long duration) {
-        OperationLog operationLog = new OperationLog();
+        com.example.demo.entity.OperationLog operationLog = new com.example.demo.entity.OperationLog();
 
         operationLog.setOperationType(operationType.getCode());
         operationLog.setOperationCategory(operationType.getCategory());

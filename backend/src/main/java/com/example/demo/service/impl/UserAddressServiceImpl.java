@@ -8,16 +8,18 @@ import com.example.demo.mapper.UserAddressMapper;
 import com.example.demo.service.UserAddressService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserAddress> implements UserAddressService {
+
+    private static final Logger logger = LoggerFactory.getLogger(UserAddressServiceImpl.class);
 
     private final UserAddressMapper userAddressMapper;
 
@@ -66,7 +68,7 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
         }
 
         save(address);
-        log.info("创建收货地址: userId={}, addressId={}", userId, address.getId());
+        logger.info("创建收货地址: userId={}, addressId={}", userId, address.getId());
         return address;
     }
 
@@ -93,7 +95,7 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
         address.setIsDefault(newIsDefault);
 
         updateById(address);
-        log.info("更新收货地址: userId={}, addressId={}", userId, id);
+        logger.info("更新收货地址: userId={}, addressId={}", userId, id);
         return address;
     }
 
@@ -112,11 +114,11 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
             if (!remaining.isEmpty()) {
                 remaining.get(0).setIsDefault(1);
                 updateById(remaining.get(0));
-                log.info("删除默认地址后，自动设置新的默认地址: userId={}, newDefaultId={}", userId, remaining.get(0).getId());
+                logger.info("删除默认地址后，自动设置新的默认地址: userId={}, newDefaultId={}", userId, remaining.get(0).getId());
             }
         }
 
-        log.info("删除收货地址: addressId={}", id);
+        logger.info("删除收货地址: addressId={}", id);
     }
 
     @Override
@@ -129,7 +131,7 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
         address.setIsDefault(1);
         updateById(address);
 
-        log.info("设置默认地址: userId={}, addressId={}", userId, id);
+        logger.info("设置默认地址: userId={}, addressId={}", userId, id);
     }
 
     @Override

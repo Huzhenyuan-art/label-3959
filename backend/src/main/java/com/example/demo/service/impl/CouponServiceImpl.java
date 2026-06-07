@@ -17,7 +17,8 @@ import com.example.demo.mapper.UserCouponMapper;
 import com.example.demo.service.CouponService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,10 +28,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CouponServiceImpl extends ServiceImpl<CouponTemplateMapper, CouponTemplate> implements CouponService {
+
+    private static final Logger logger = LoggerFactory.getLogger(CouponServiceImpl.class);
 
     private final CouponTemplateMapper couponTemplateMapper;
     private final UserCouponMapper userCouponMapper;
@@ -57,7 +59,7 @@ public class CouponServiceImpl extends ServiceImpl<CouponTemplateMapper, CouponT
         template.setDescription(dto.getDescription());
 
         save(template);
-        log.info("创建优惠券模板成功: templateId={}, name={}", template.getId(), template.getName());
+        logger.info("创建优惠券模板成功: templateId={}, name={}", template.getId(), template.getName());
         return template;
     }
 
@@ -146,7 +148,7 @@ public class CouponServiceImpl extends ServiceImpl<CouponTemplateMapper, CouponT
         }
         template.setStatus(status);
         updateById(template);
-        log.info("更新优惠券模板状态: templateId={}, status={}", id, status);
+        logger.info("更新优惠券模板状态: templateId={}, status={}", id, status);
         return template;
     }
 
@@ -201,7 +203,7 @@ public class CouponServiceImpl extends ServiceImpl<CouponTemplateMapper, CouponT
         }
 
         userCouponMapper.insert(userCoupon);
-        log.info("用户领取优惠券成功: userId={}, templateId={}, userCouponId={}", userId, templateId, userCoupon.getId());
+        logger.info("用户领取优惠券成功: userId={}, templateId={}, userCouponId={}", userId, templateId, userCoupon.getId());
         return userCoupon;
     }
 
@@ -288,7 +290,7 @@ public class CouponServiceImpl extends ServiceImpl<CouponTemplateMapper, CouponT
 
         couponTemplateMapper.incrementUsedCount(template.getId());
 
-        log.info("使用优惠券成功: userCouponId={}, orderId={}, discountAmount={}", userCouponId, orderId, discountAmount);
+        logger.info("使用优惠券成功: userCouponId={}, orderId={}, discountAmount={}", userCouponId, orderId, discountAmount);
         return userCoupon;
     }
 
@@ -355,7 +357,7 @@ public class CouponServiceImpl extends ServiceImpl<CouponTemplateMapper, CouponT
 
         couponTemplateMapper.decrementUsedCount(userCoupon.getTemplateId());
 
-        log.info("恢复优惠券可用状态: userCouponId={}, orderId={}", userCoupon.getId(), orderId);
+        logger.info("恢复优惠券可用状态: userCouponId={}, orderId={}", userCoupon.getId(), orderId);
     }
 
     @Override

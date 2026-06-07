@@ -14,7 +14,8 @@ import com.example.demo.mapper.StockReservationMapper;
 import com.example.demo.service.StockReservationService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,10 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StockReservationServiceImpl extends ServiceImpl<StockReservationMapper, StockReservation> implements StockReservationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(StockReservationServiceImpl.class);
 
     private final StockReservationMapper stockReservationMapper;
     private final ProductMapper productMapper;
@@ -63,7 +65,7 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
             reservation.setExpireTime(expireTime);
             save(reservation);
 
-            log.info("创建库存预占成功: orderId={}, productId={}, productName={}, quantity={}",
+            logger.info("创建库存预占成功: orderId={}, productId={}, productName={}, quantity={}",
                     orderId, item.getProductId(), item.getProductName(), item.getQuantity());
         }
     }
@@ -77,7 +79,7 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
 
         List<StockReservation> reservations = list(wrapper);
         if (reservations.isEmpty()) {
-            log.warn("未找到需要释放的预占记录: orderId={}", orderId);
+            logger.warn("未找到需要释放的预占记录: orderId={}", orderId);
             return;
         }
 
@@ -91,7 +93,7 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
             reservation.setReleaseReason(reason);
             updateById(reservation);
 
-            log.info("释放库存预占: orderId={}, productId={}, productName={}, quantity={}, reason={}",
+            logger.info("释放库存预占: orderId={}, productId={}, productName={}, quantity={}, reason={}",
                     orderId, reservation.getProductId(), reservation.getProductName(), reservation.getQuantity(), reason);
         }
     }
@@ -105,7 +107,7 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
 
         List<StockReservation> reservations = list(wrapper);
         if (reservations.isEmpty()) {
-            log.warn("未找到需要扣减的预占记录: orderId={}", orderId);
+            logger.warn("未找到需要扣减的预占记录: orderId={}", orderId);
             return;
         }
 
@@ -118,7 +120,7 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
             reservation.setStatus(StockReservationStatusEnum.DEDUCTED.getCode());
             updateById(reservation);
 
-            log.info("正式扣减库存: orderId={}, productId={}, productName={}, quantity={}",
+            logger.info("正式扣减库存: orderId={}, productId={}, productName={}, quantity={}",
                     orderId, reservation.getProductId(), reservation.getProductName(), reservation.getQuantity());
         }
     }
@@ -148,11 +150,11 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
 
         for (StockReservation reservation : expiredReservations) {
             stockReservationMapper.decreaseReservedStock(reservation.getProductId(), reservation.getQuantity());
-            log.info("超时自动释放预占: reservationId={}, orderId={}, productId={}, productName={}, quantity={}",
+            logger.info("超时自动释放预占: reservationId={}, orderId={}, productId={}, productName={}, quantity={}",
                     reservation.getId(), reservation.getOrderId(), reservation.getProductId(), reservation.getProductName(), reservation.getQuantity());
         }
 
-        log.info("本次超时释放预占记录数: {}", updatedCount);
+        logger.info("本次超时释放预占记录数: {}", updatedCount);
         return updatedCount;
     }
 
@@ -161,10 +163,10 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
         try {
             int count = releaseExpiredReservations();
             if (count > 0) {
-                log.info("定时任务执行完成，释放超时预占记录: {} 条", count);
+                logger.info("定时任务执行完成，释放超时预占记录: {} 条", count);
             }
         } catch (Exception e) {
-            log.error("定时释放超时预占失败", e);
+            logger.error("定时释放超时预占失败", e);
         }
     }
 }

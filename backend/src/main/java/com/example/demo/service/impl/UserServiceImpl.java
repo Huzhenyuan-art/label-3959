@@ -11,7 +11,8 @@ import com.example.demo.mapper.UserMapper;
 import com.example.demo.service.UserService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,10 +21,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
+
+    private static final Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
 
     private final PasswordEncoder passwordEncoder;
 
@@ -37,7 +39,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .eq(StringUtils.hasText(role), User::getRole, role)
                 .orderByDesc(User::getCreatedTime);
 
-        log.info("分页查询用户: current={}, size={}, username={}, status={}, minAge={}, maxAge={}, role={}", current, size, username, status, minAge, maxAge, role);
+        logger.info("分页查询用户: current={}, size={}, username={}, status={}, minAge={}, maxAge={}, role={}", current, size, username, status, minAge, maxAge, role);
         return page(new Page<>(current, size), wrapper);
     }
 
@@ -68,7 +70,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setDeleted(0);
         user.setVersion(1);
         save(user);
-        log.info("创建用户成功: id={}, username={}, role={}", user.getId(), user.getUsername(), user.getRole());
+        logger.info("创建用户成功: id={}, username={}, role={}", user.getId(), user.getUsername(), user.getRole());
         return user;
     }
 
@@ -127,7 +129,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!success) {
             throw new IllegalArgumentException("更新失败，数据已被他人修改，请刷新后重试（乐观锁冲突）");
         }
-        log.info("更新用户成功: id={}", user.getId());
+        logger.info("更新用户成功: id={}", user.getId());
         return getById(user.getId());
     }
 
@@ -138,7 +140,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new IllegalArgumentException("不能删除当前登录用户");
         }
         removeById(id);
-        log.info("逻辑删除用户: id={}", id);
+        logger.info("逻辑删除用户: id={}", id);
     }
 
     @Override
@@ -157,13 +159,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             u.setVersion(1);
         });
         saveBatch(users);
-        log.info("批量创建用户: count={}", users.size());
+        logger.info("批量创建用户: count={}", users.size());
         return users;
     }
 
     @Override
     public IPage<User> pageDeletedUsers(int current, int size, String username, Integer status, Integer minAge, Integer maxAge, String role) {
-        log.info("分页查询已删除用户: current={}, size={}, username={}, status={}, minAge={}, maxAge={}, role={}", current, size, username, status, minAge, maxAge, role);
+        logger.info("分页查询已删除用户: current={}, size={}, username={}, status={}, minAge={}, maxAge={}, role={}", current, size, username, status, minAge, maxAge, role);
         return baseMapper.selectDeletedUsers(new Page<>(current, size), username, status, minAge, maxAge, role);
     }
 
@@ -173,13 +175,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (rows == 0) {
             throw new IllegalArgumentException("恢复失败，数据已被他人修改，请刷新后重试（乐观锁冲突）");
         }
-        log.info("恢复用户成功: id={}, 新版本号={}", id, version + 1);
+        logger.info("恢复用户成功: id={}, 新版本号={}", id, version + 1);
         return getById(id);
     }
 
     @Override
     public List<User> listDeletedUsers(String username, Integer status, Integer minAge, Integer maxAge, String role) {
-        log.info("查询已删除用户列表: username={}, status={}, minAge={}, maxAge={}, role={}", username, status, minAge, maxAge, role);
+        logger.info("查询已删除用户列表: username={}, status={}, minAge={}, maxAge={}, role={}", username, status, minAge, maxAge, role);
         return baseMapper.listDeletedUsers(username, status, minAge, maxAge, role);
     }
 }
