@@ -8,6 +8,7 @@ import com.example.demo.entity.User;
 import com.example.demo.enums.RoleEnum;
 import com.example.demo.mapper.UserMapper;
 import com.example.demo.service.UserService;
+import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,25 +25,27 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    public IPage<User> pageUsers(int current, int size, String username, Integer status, Integer minAge, Integer maxAge) {
+    public IPage<User> pageUsers(int current, int size, String username, Integer status, Integer minAge, Integer maxAge, String role) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()
                 .like(StringUtils.hasText(username), User::getUsername, username)
                 .eq(status != null, User::getStatus, status)
                 .ge(minAge != null, User::getAge, minAge)
                 .le(maxAge != null, User::getAge, maxAge)
+                .eq(StringUtils.hasText(role), User::getRole, role)
                 .orderByDesc(User::getCreatedTime);
 
-        log.info("分页查询用户: current={}, size={}, username={}, status={}, minAge={}, maxAge={}", current, size, username, status, minAge, maxAge);
+        log.info("分页查询用户: current={}, size={}, username={}, status={}, minAge={}, maxAge={}, role={}", current, size, username, status, minAge, maxAge, role);
         return page(new Page<>(current, size), wrapper);
     }
 
     @Override
-    public List<User> listUsers(String username, Integer status, Integer minAge, Integer maxAge) {
+    public List<User> listUsers(String username, Integer status, Integer minAge, Integer maxAge, String role) {
         return lambdaQuery()
                 .like(StringUtils.hasText(username), User::getUsername, username)
                 .eq(status != null, User::getStatus, status)
                 .ge(minAge != null, User::getAge, minAge)
                 .le(maxAge != null, User::getAge, maxAge)
+                .eq(StringUtils.hasText(role), User::getRole, role)
                 .orderByAsc(User::getId)
                 .list();
     }
@@ -67,6 +70,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public User updateUser(User user) {
+        Long currentUserId = SecurityUtil.getCurrentUserId();
+        if (currentUserId != null && currentUserId.equals(user.getId())) {
+            User existingUser = getById(user.getId());
+            if (existingUser != null && RoleEnum.ADMIN.getCode().equals(existingUser.getRole())
+                    && RoleEnum.USER.getCode().equals(user.getRole())) {
+                throw new IllegalArgumentException("不能将自己降为普通用户");
+            }
+        }
         if (StringUtils.hasText(user.getPassword())) {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         } else {

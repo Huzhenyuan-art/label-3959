@@ -22,6 +22,10 @@
             <el-option label="启用" :value="1" />
             <el-option label="禁用" :value="0" />
           </el-select>
+          <el-select v-model="query.role" placeholder="角色" clearable style="width:120px">
+            <el-option label="管理员" value="ADMIN" />
+            <el-option label="普通用户" value="USER" />
+          </el-select>
           <el-input-number v-model="query.minAge" placeholder="最小年龄" :min="1" :max="120" clearable style="width:120px" />
           <span style="color:#909399">-</span>
           <el-input-number v-model="query.maxAge" placeholder="最大年龄" :min="1" :max="120" clearable style="width:120px" />
@@ -39,6 +43,13 @@
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="email" label="邮箱" min-width="180" />
+        <el-table-column prop="role" label="角色" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'primary'" size="small">
+              {{ row.role === 'ADMIN' ? '管理员' : '普通用户' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="age" label="年龄" width="70" />
         <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
@@ -95,6 +106,15 @@
             <el-radio :value="0">禁用</el-radio>
           </el-radio-group>
         </el-form-item>
+        <el-form-item label="角色" prop="role">
+          <el-radio-group v-model="form.role">
+            <el-radio value="ADMIN">管理员</el-radio>
+            <el-radio value="USER" :disabled="isEditingSelf">普通用户</el-radio>
+          </el-radio-group>
+          <el-tooltip v-if="isEditingSelf" content="不能将自己降为普通用户" placement="right">
+            <el-icon class="ml-4" style="color:#f56c6c"><QuestionFilled /></el-icon>
+          </el-tooltip>
+        </el-form-item>
         <el-form-item v-if="isEdit" label="当前版本">
           <el-tag type="warning">v{{ form.version }}（提交时自动 +1）</el-tag>
         </el-form-item>
@@ -124,10 +144,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, CopyDocument } from '@element-plus/icons-vue'
+import { Search, Plus, CopyDocument, QuestionFilled } from '@element-plus/icons-vue'
 import { getUserPage, createUser, updateUser, deleteUser, batchCreateUsers } from '../api/user'
+import { useAuthStore } from '../store/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -138,8 +161,12 @@ const batchDialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
 
-const query = reactive({ current: 1, size: 10, username: '', status: null, minAge: null, maxAge: null })
-const form = reactive({ id: null, username: '', email: '', age: 18, status: 1, version: null })
+const query = reactive({ current: 1, size: 10, username: '', status: null, role: null, minAge: null, maxAge: null })
+const form = reactive({ id: null, username: '', email: '', age: 18, status: 1, role: 'USER', version: null })
+
+const isEditingSelf = computed(() => {
+  return isEdit.value && form.id === authStore.userInfo?.id
+})
 
 const loadData = async () => {
   loading.value = true
@@ -147,6 +174,7 @@ const loadData = async () => {
     const res = await getUserPage({ 
       ...query, 
       status: query.status ?? undefined,
+      role: query.role ?? undefined,
       minAge: query.minAge ?? undefined,
       maxAge: query.maxAge ?? undefined
     })
@@ -160,6 +188,7 @@ const loadData = async () => {
 const resetQuery = () => {
   query.username = ''
   query.status = null
+  query.role = null
   query.minAge = null
   query.maxAge = null
   query.current = 1
@@ -168,7 +197,7 @@ const resetQuery = () => {
 
 const openCreate = () => {
   isEdit.value = false
-  Object.assign(form, { id: null, username: '', email: '', age: 18, status: 1, version: null })
+  Object.assign(form, { id: null, username: '', email: '', age: 18, status: 1, role: 'USER', version: null })
   dialogVisible.value = true
 }
 
@@ -180,6 +209,10 @@ const openEdit = (row) => {
 
 const handleSubmit = async () => {
   await formRef.value.validate()
+  if (isEditingSelf.value && form.role === 'USER') {
+    ElMessage.error('不能将自己降为普通用户')
+    return
+  }
   submitting.value = true
   try {
     if (isEdit.value) {
@@ -209,9 +242,9 @@ const handleBatchCreate = async () => {
   submitting.value = true
   try {
     const users = [
-      { username: '批量用户A', email: 'batch_a@test.com', age: 20, status: 1 },
-      { username: '批量用户B', email: 'batch_b@test.com', age: 25, status: 1 },
-      { username: '批量用户C', email: 'batch_c@test.com', age: 30, status: 1 }
+      { username: '批量用户A', email: 'batch_a@test.com', age: 20, status: 1, role: 'USER' },
+      { username: '批量用户B', email: 'batch_b@test.com', age: 25, status: 1, role: 'USER' },
+      { username: '批量用户C', email: 'batch_c@test.com', age: 30, status: 1, role: 'USER' }
     ]
     await batchCreateUsers(users)
     ElMessage.success('批量插入成功，saveBatch 一次写入 3 条')
@@ -231,6 +264,7 @@ onMounted(loadData)
 .user-page { display: flex; flex-direction: column; gap: 16px; }
 .feature-alert { border-radius: 8px; }
 .ml-8 { margin-left: 8px; }
+.ml-4 { margin-left: 4px; }
 .main-card { border-radius: 12px; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
 .search-area, .action-area { display: flex; align-items: center; gap: 8px; }

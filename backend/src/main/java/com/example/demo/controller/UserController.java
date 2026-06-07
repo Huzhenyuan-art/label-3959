@@ -27,8 +27,9 @@ public class UserController {
                                     @RequestParam(required = false) String username,
                                     @RequestParam(required = false) Integer status,
                                     @RequestParam(required = false) Integer minAge,
-                                    @RequestParam(required = false) Integer maxAge) {
-        return Result.ok(userService.pageUsers(current, size, username, status, minAge, maxAge));
+                                    @RequestParam(required = false) Integer maxAge,
+                                    @RequestParam(required = false) String role) {
+        return Result.ok(userService.pageUsers(current, size, username, status, minAge, maxAge, role));
     }
 
     /** 条件列表查询 */
@@ -36,8 +37,9 @@ public class UserController {
     public Result<List<User>> list(@RequestParam(required = false) String username,
                                    @RequestParam(required = false) Integer status,
                                    @RequestParam(required = false) Integer minAge,
-                                   @RequestParam(required = false) Integer maxAge) {
-        return Result.ok(userService.listUsers(username, status, minAge, maxAge));
+                                   @RequestParam(required = false) Integer maxAge,
+                                   @RequestParam(required = false) String role) {
+        return Result.ok(userService.listUsers(username, status, minAge, maxAge, role));
     }
 
     /** 根据 ID 查询 */
