@@ -190,3 +190,27 @@ CREATE TABLE IF NOT EXISTS `stock_reservation` (
   INDEX `idx_expire_time` (`expire_time`),
   INDEX `idx_created_time` (`created_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `refund_order` (
+  `id`              BIGINT         NOT NULL AUTO_INCREMENT,
+  `order_id`        BIGINT         NOT NULL,
+  `user_id`         BIGINT         NOT NULL,
+  `refund_no`       VARCHAR(50)    NOT NULL,
+  `refund_amount`   DECIMAL(12,2)  NOT NULL,
+  `refund_type`     TINYINT        NOT NULL DEFAULT 1,
+  `refund_reason`   VARCHAR(200)   NOT NULL,
+  `refund_desc`     VARCHAR(500)   DEFAULT NULL,
+  `proof_images`    VARCHAR(1000)  DEFAULT NULL,
+  `status`          TINYINT        NOT NULL DEFAULT 0,
+  `audit_remark`    VARCHAR(500)   DEFAULT NULL,
+  `audit_user_id`   BIGINT         DEFAULT NULL,
+  `created_time`    DATETIME       DEFAULT NULL,
+  `updated_time`    DATETIME       DEFAULT NULL,
+  `audit_time`      DATETIME       DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_refund_no` (`refund_no`),
+  INDEX `idx_order_id` (`order_id`),
+  INDEX `idx_user_id` (`user_id`),
+  INDEX `idx_status` (`status`),
+  INDEX `idx_created_time` (`created_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

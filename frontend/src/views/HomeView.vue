@@ -89,7 +89,7 @@ const features = [
   { title: '自动填充', desc: '@TableField fill 自动填充时间戳', icon: 'Timer', bg: 'rgba(144,147,153,0.1)', color: '#909399' },
   { title: '乐观锁', desc: '@Version 防并发冲突', icon: 'Lock', bg: 'rgba(64,158,255,0.1)', color: '#409EFF' },
   { title: '多表联查', desc: 'XML Mapper 一对多 resultMap', icon: 'Connection', bg: 'rgba(103,194,58,0.1)', color: '#67C23A' },
-  { title: '库存预占', desc: '下单预占/取消释放/收货扣减', icon: 'ShoppingCart', bg: 'rgba(135,78,255,0.1)', color: '#874eff' }
+  { title: '退款管理', desc: '用户申请/管理员审核/库存回滚', icon: 'RefreshRight', bg: 'rgba(230,162,60,0.1)', color: '#E6A23C' }
 ]
 
 const featureList = [
@@ -102,7 +102,9 @@ const featureList = [
   { name: 'XML 一对多联查', page: '订单管理', type: 'success', detail: 'resultMap + collection 映射订单明细' },
   { name: '批量插入 saveBatch', page: '用户管理', type: '', detail: '高效批量写入，减少数据库交互次数' },
   { name: '自定义 @Select SQL', page: '首页统计', type: 'warning', detail: '注解式 SQL，分组统计商品分类数据' },
-  { name: '动态 SQL <if>', page: '订单查询', type: 'info', detail: 'XML 中使用 <where>/<if> 构建动态查询条件' }
+  { name: '动态 SQL <if>', page: '订单查询', type: 'info', detail: 'XML 中使用 <where>/<if> 构建动态查询条件' },
+  { name: '退款申请流程', page: '退款管理', type: 'warning', detail: '用户申请退款，管理员审核，通过后自动回滚库存' },
+  { name: '通知推送', page: '消息中心', type: 'success', detail: '审核结果通过通知系统异步推送给用户' }
 ]
 
 onMounted(async () => {

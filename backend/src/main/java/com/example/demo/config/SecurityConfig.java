@@ -55,6 +55,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/coupons/**").authenticated()
                         .requestMatchers("/api/products/**").authenticated()
                         .requestMatchers("/api/orders/**").authenticated()
+                        .requestMatchers("/api/refunds/audit").hasRole(RoleEnum.ADMIN.getCode())
+                        .requestMatchers("/api/refunds/**").authenticated()
                         .requestMatchers("/api/stock-reservations/**").authenticated()
                         .requestMatchers("/api/carts/**").authenticated()
                         .requestMatchers("/api/notifications/**").authenticated()

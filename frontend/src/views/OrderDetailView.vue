@@ -137,6 +137,60 @@
         </div>
       </el-card>
 
+      <!-- 退款信息 -->
+      <el-card shadow="never" class="refund-card" v-if="pendingRefund || canApplyRefund">
+        <template #header>
+          <div class="card-header">
+            <span class="card-title">退款管理</span>
+            <el-tag v-if="pendingRefund" :type="statusTagType(pendingRefund.status)" size="small">
+              {{ pendingRefund.statusLabel }}
+            </el-tag>
+          </div>
+        </template>
+        <div v-if="pendingRefund">
+          <el-descriptions :column="2" border size="small">
+            <el-descriptions-item label="退款单号">
+              <el-link type="primary" @click="goRefundDetail(pendingRefund.id)">
+                {{ pendingRefund.refundNo }}
+              </el-link>
+            </el-descriptions-item>
+            <el-descriptions-item label="退款金额">
+              <span class="amount">¥{{ Number(pendingRefund.refundAmount).toFixed(2) }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="退款原因">
+              {{ pendingRefund.refundReason }}
+            </el-descriptions-item>
+            <el-descriptions-item label="申请时间">
+              {{ formatTime(pendingRefund.createdTime) }}
+            </el-descriptions-item>
+          </el-descriptions>
+          <div class="action-bar">
+            <el-button
+              v-if="!isAdmin && pendingRefund.status === 0"
+              type="danger"
+              @click="goRefundDetail(pendingRefund.id)"
+            >
+              取消申请
+            </el-button>
+            <el-button
+              v-if="isAdmin && pendingRefund.status === 0"
+              type="warning"
+              @click="goRefundDetail(pendingRefund.id)"
+            >
+              立即审核
+            </el-button>
+          </div>
+        </div>
+        <div v-else-if="canApplyRefund" class="apply-area">
+          <el-alert type="info" :closable="false">
+            您可以对该订单申请退款，审核通过后订单状态将变更为"已取消"，库存将自动回滚。
+          </el-alert>
+          <el-button type="danger" style="margin-top: 12px" @click="goApplyRefund">
+            申请退款
+          </el-button>
+        </div>
+      </el-card>
+
       <!-- 库存预占记录 -->
       <el-card shadow="never" class="reservation-card" v-if="reservations.length > 0">
         <template #header>
@@ -213,15 +267,20 @@ WHERE o.id = #{id}</pre>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { getOrderDetail } from '../api/order'
 import { submitReview, getPendingReviews } from '../api/review'
 import { getStockReservationsByOrderId } from '../api/stockReservation'
+import { getRefundPage } from '../api/refund'
+import { useAuthStore } from '../store/auth'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+const { isAdmin } = authStore
 const loading = ref(true)
 const order = ref(null)
 const reservations = ref([])
@@ -229,6 +288,7 @@ const reviewDialogVisible = ref(false)
 const reviewSubmitting = ref(false)
 const reviewFormRef = ref()
 const reviewedItems = ref({})
+const pendingRefund = ref(null)
 
 const ratingTexts = ['非常差', '差', '一般', '好', '非常好']
 
@@ -242,6 +302,13 @@ const reviewForm = reactive({
 const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger'][s] || ''
 const reservationTagType = (s) => ['warning', 'info', 'success'][s] || ''
 const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 19) : '-'
+
+const canApplyRefund = computed(() => {
+  if (!order.value) return false
+  if (pendingRefund.value) return false
+  const status = order.value.status
+  return (status === 1 || status === 2 || status === 3)
+})
 
 const loadReservations = async () => {
   try {
@@ -264,6 +331,24 @@ const loadReviewedItems = async () => {
     }
     reviewedItems.value = reviewed
   } catch (e) {}
+}
+
+const loadPendingRefund = async () => {
+  try {
+    const res = await getRefundPage({ orderId: route.params.id, size: 100 })
+    const refunds = res.data.records
+    if (refunds && refunds.length > 0) {
+      pendingRefund.value = refunds.find(r => r.status === 0) || refunds[0]
+    }
+  } catch (e) {}
+}
+
+const goApplyRefund = () => {
+  router.push(`/orders/${route.params.id}/refund/apply`)
+}
+
+const goRefundDetail = (id) => {
+  router.push(`/refunds/${id}`)
 }
 
 const openReviewDialog = (row) => {
@@ -336,4 +421,12 @@ onMounted(async () => {
 }
 .loading-area { padding: 24px; }
 .form-text { color: #303133; font-weight: 500; }
+.refund-card { border-radius: 12px; }
+.apply-area { padding: 8px 0; }
+.action-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
 </style>

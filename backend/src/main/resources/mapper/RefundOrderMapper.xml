@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.mapper.RefundOrderMapper">
+
+    <resultMap id="RefundDetailMap" type="com.example.demo.dto.RefundDetailDTO">
+        <id property="id" column="refund_id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="username" column="username"/>
+        <result property="refundNo" column="refund_no"/>
+        <result property="refundAmount" column="refund_amount"/>
+        <result property="refundType" column="refund_type"/>
+        <result property="refundTypeLabel" column="refund_type_label"/>
+        <result property="refundReason" column="refund_reason"/>
+        <result property="refundDesc" column="refund_desc"/>
+        <result property="proofImages" column="proof_images"/>
+        <result property="status" column="status"/>
+        <result property="statusLabel" column="status_label"/>
+        <result property="auditRemark" column="audit_remark"/>
+        <result property="auditUserId" column="audit_user_id"/>
+        <result property="auditUsername" column="audit_username"/>
+        <result property="createdTime" column="created_time"/>
+        <result property="updatedTime" column="updated_time"/>
+        <result property="auditTime" column="audit_time"/>
+        <result property="orderTotalAmount" column="order_total_amount"/>
+        <result property="orderStatus" column="order_status"/>
+        <result property="orderStatusLabel" column="order_status_label"/>
+    </resultMap>
+
+    <select id="selectRefundPage" resultMap="RefundDetailMap">
+        SELECT
+            r.id             AS refund_id,
+            r.order_id,
+            r.user_id,
+            u.username,
+            r.refund_no,
+            r.refund_amount,
+            r.refund_type,
+            CASE r.refund_type
+                WHEN 1 THEN '全额退款'
+                WHEN 2 THEN '部分退款'
+                ELSE '其他'
+            END              AS refund_type_label,
+            r.refund_reason,
+            r.refund_desc,
+            r.proof_images,
+            r.status,
+            CASE r.status
+                WHEN 0 THEN '待审核'
+                WHEN 1 THEN '审核通过'
+                WHEN 2 THEN '审核拒绝'
+                WHEN 3 THEN '已取消'
+            END              AS status_label,
+            r.audit_remark,
+            r.audit_user_id,
+            au.username      AS audit_username,
+            r.created_time,
+            r.updated_time,
+            r.audit_time,
+            o.total_amount   AS order_total_amount,
+            o.status         AS order_status,
+            CASE o.status
+                WHEN 0 THEN '待支付'
+                WHEN 1 THEN '已支付'
+                WHEN 2 THEN '已发货'
+                WHEN 3 THEN '已完成'
+                WHEN 4 THEN '已取消'
+            END              AS order_status_label
+        FROM refund_order r
+        LEFT JOIN `user` u ON r.user_id = u.id AND u.deleted = 0
+        LEFT JOIN `user` au ON r.audit_user_id = au.id AND au.deleted = 0
+        LEFT JOIN `order` o ON r.order_id = o.id
+        <where>
+            <if test="refundNo != null and refundNo != ''">
+                AND r.refund_no LIKE CONCAT('%', #{refundNo}, '%')
+            </if>
+            <if test="orderId != null">
+                AND r.order_id = #{orderId}
+            </if>
+            <if test="username != null and username != ''">
+                AND u.username LIKE CONCAT('%', #{username}, '%')
+            </if>
+            <if test="status != null">
+                AND r.status = #{status}
+            </if>
+            <if test="userId != null">
+                AND r.user_id = #{userId}
+            </if>
+        </where>
+        ORDER BY r.created_time DESC
+    </select>
+
+    <select id="selectRefundDetail" resultMap="RefundDetailMap">
+        SELECT
+            r.id             AS refund_id,
+            r.order_id,
+            r.user_id,
+            u.username,
+            r.refund_no,
+            r.refund_amount,
+            r.refund_type,
+            CASE r.refund_type
+                WHEN 1 THEN '全额退款'
+                WHEN 2 THEN '部分退款'
+                ELSE '其他'
+            END              AS refund_type_label,
+            r.refund_reason,
+            r.refund_desc,
+            r.proof_images,
+            r.status,
+            CASE r.status
+                WHEN 0 THEN '待审核'
+                WHEN 1 THEN '审核通过'
+                WHEN 2 THEN '审核拒绝'
+                WHEN 3 THEN '已取消'
+            END              AS status_label,
+            r.audit_remark,
+            r.audit_user_id,
+            au.username      AS audit_username,
+            r.created_time,
+            r.updated_time,
+            r.audit_time,
+            o.total_amount   AS order_total_amount,
+            o.status         AS order_status,
+            CASE o.status
+                WHEN 0 THEN '待支付'
+                WHEN 1 THEN '已支付'
+                WHEN 2 THEN '已发货'
+                WHEN 3 THEN '已完成'
+                WHEN 4 THEN '已取消'
+            END              AS order_status_label
+        FROM refund_order r
+        LEFT JOIN `user` u ON r.user_id = u.id AND u.deleted = 0
+        LEFT JOIN `user` au ON r.audit_user_id = au.id AND au.deleted = 0
+        LEFT JOIN `order` o ON r.order_id = o.id
+        WHERE r.id = #{id}
+    </select>
+
+    <select id="selectPendingByOrderId" resultType="com.example.demo.entity.RefundOrder">
+        SELECT * FROM refund_order
+        WHERE order_id = #{orderId} AND status = 0
+        LIMIT 1
+    </select>
+
+</mapper>

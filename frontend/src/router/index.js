@@ -11,6 +11,9 @@ import CouponCenterView from '../views/CouponCenterView.vue'
 import MyCouponsView from '../views/MyCouponsView.vue'
 import AddressView from '../views/AddressView.vue'
 import StockReservationView from '../views/StockReservationView.vue'
+import RefundView from '../views/RefundView.vue'
+import RefundApplyView from '../views/RefundApplyView.vue'
+import RefundDetailView from '../views/RefundDetailView.vue'
 import LoginView from '../views/LoginView.vue'
 import { useAuthStore } from '../store/auth'
 
@@ -22,6 +25,9 @@ const routes = [
   { path: '/cart', component: CartView, meta: { title: '购物车', requiresAuth: true } },
   { path: '/orders', component: OrderView, meta: { title: '订单管理', requiresAuth: true } },
   { path: '/orders/:id', component: OrderDetailView, meta: { title: '订单详情', requiresAuth: true } },
+  { path: '/orders/:orderId/refund/apply', component: RefundApplyView, meta: { title: '申请退款', requiresAuth: true } },
+  { path: '/refunds', component: RefundView, meta: { title: '退款管理', requiresAuth: true } },
+  { path: '/refunds/:id', component: RefundDetailView, meta: { title: '退款详情', requiresAuth: true } },
   { path: '/reviews', component: ReviewView, meta: { title: '商品评价', requiresAuth: true } },
   { path: '/notifications', component: NotificationView, meta: { title: '消息中心', requiresAuth: true } },
   { path: '/coupons', component: CouponCenterView, meta: { title: '优惠券中心', requiresAuth: true } },
