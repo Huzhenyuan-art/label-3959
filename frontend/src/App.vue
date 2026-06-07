@@ -33,6 +33,10 @@
           <el-icon><ShoppingCart /></el-icon>
           <span>购物车</span>
         </el-menu-item>
+        <el-menu-item index="/favorites">
+          <el-icon><StarFilled /></el-icon>
+          <span>我的收藏</span>
+        </el-menu-item>
         <el-menu-item index="/orders">
           <el-icon><List /></el-icon>
           <span>订单管理</span>
@@ -124,7 +128,7 @@
 import { useRouter } from 'vue-router'
 import { onMounted, onUnmounted, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location, Box, RefreshRight, Document } from '@element-plus/icons-vue'
+import { Bell, ShoppingCart, StarFilled, ChatDotRound, Present, Wallet, Location, Box, RefreshRight, Document } from '@element-plus/icons-vue'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notification'
 

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.mapper.FavoriteMapper">
+
+    <resultMap id="FavoriteItemDTOMap" type="com.example.demo.dto.FavoriteItemDTO">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="productId" column="product_id"/>
+        <result property="productName" column="product_name"/>
+        <result property="productPrice" column="product_price"/>
+        <result property="productStock" column="product_stock"/>
+        <result property="productReservedStock" column="product_reserved_stock"/>
+        <result property="productCategory" column="product_category"/>
+        <result property="productDescription" column="product_description"/>
+        <result property="createdTime" column="created_time"/>
+        <result property="updatedTime" column="updated_time"/>
+    </resultMap>
+
+    <select id="selectFavoriteItemsByUserId" resultMap="FavoriteItemDTOMap">
+        SELECT f.id, f.user_id, f.product_id, f.created_time, f.updated_time,
+               p.name AS product_name, p.price AS product_price, p.stock AS product_stock,
+               p.reserved_stock AS product_reserved_stock, p.category AS product_category,
+               p.description AS product_description
+        FROM favorite f
+        LEFT JOIN product p ON f.product_id = p.id
+        WHERE f.user_id = #{userId}
+        ORDER BY f.created_time DESC
+    </select>
+
+    <select id="selectFavoriteItemById" resultMap="FavoriteItemDTOMap">
+        SELECT f.id, f.user_id, f.product_id, f.created_time, f.updated_time,
+               p.name AS product_name, p.price AS product_price, p.stock AS product_stock,
+               p.reserved_stock AS product_reserved_stock, p.category AS product_category,
+               p.description AS product_description
+        FROM favorite f
+        LEFT JOIN product p ON f.product_id = p.id
+        WHERE f.user_id = #{userId} AND f.id = #{id}
+    </select>
+
+</mapper>

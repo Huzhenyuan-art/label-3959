@@ -88,8 +88,17 @@
               </template>
             </el-table-column>
             <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
-            <el-table-column label="操作" width="320" fixed="right">
+            <el-table-column label="操作" width="420" fixed="right">
               <template #default="{ row }">
+                <el-button
+                  link
+                  size="small"
+                  :icon="isProductFavorited(row.id) ? StarFilled : Star"
+                  :type="isProductFavorited(row.id) ? 'warning' : 'info'"
+                  @click="toggleFavorite(row)"
+                >
+                  {{ isProductFavorited(row.id) ? '已收藏' : '收藏' }}
+                </el-button>
                 <el-button link type="success" size="small" :icon="ShoppingCart" @click="openAddToCart(row)" :disabled="getAvailableStock(row) <= 0">
                   加入购物车
                 </el-button>
@@ -236,10 +245,11 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, ShoppingCart, ChatDotRound } from '@element-plus/icons-vue'
+import { Search, Plus, ShoppingCart, ChatDotRound, Star, StarFilled } from '@element-plus/icons-vue'
 import { getProductPage, createProduct, updateProduct, deleteProduct, getCategoryStats } from '../api/product'
 import { addToCart } from '../api/cart'
 import { getReviewPage, getReviewStats } from '../api/review'
+import { addFavorite, removeFavoriteByProductId, checkFavorite } from '../api/favorite'
 
 const loading = ref(false)
 const statsLoading = ref(false)
@@ -258,6 +268,8 @@ const cartFormRef = ref()
 const query = reactive({ current: 1, size: 10, name: '', category: '', minPrice: null, maxPrice: null, minStock: null, maxStock: null })
 const form = reactive({ id: null, name: '', category: '', price: 0, stock: 0, description: '' })
 const cartForm = reactive({ productId: null, productName: '', productStock: 0, reservedStock: 0, availableStock: 0, quantity: 1 })
+const favoritedProductIds = ref(new Set())
+const favoriteLoading = ref(false)
 
 const getAvailableStock = (row) => {
   const total = row.stock || 0
@@ -307,12 +319,52 @@ const handlePageChange = () => {
   loadStats()
 }
 
+const isProductFavorited = (productId) => {
+  return favoritedProductIds.value.has(productId)
+}
+
+const loadFavoriteStatus = async () => {
+  if (tableData.value.length === 0) return
+  try {
+    const checks = tableData.value.map(row => checkFavorite(row.id))
+    const results = await Promise.all(checks)
+    const newSet = new Set()
+    tableData.value.forEach((row, index) => {
+      if (results[index].data) {
+        newSet.add(row.id)
+      }
+    })
+    favoritedProductIds.value = newSet
+  } catch (e) {
+    console.error('加载收藏状态失败', e)
+  }
+}
+
+const toggleFavorite = async (row) => {
+  if (favoriteLoading.value) return
+  favoriteLoading.value = true
+  try {
+    if (isProductFavorited(row.id)) {
+      await removeFavoriteByProductId(row.id)
+      favoritedProductIds.value.delete(row.id)
+      ElMessage.success('已取消收藏')
+    } else {
+      await addFavorite({ productId: row.id })
+      favoritedProductIds.value.add(row.id)
+      ElMessage.success('收藏成功')
+    }
+  } finally {
+    favoriteLoading.value = false
+  }
+}
+
 const loadData = async () => {
   loading.value = true
   try {
     const res = await getProductPage({ ...query })
     tableData.value = res.data.records
     total.value = res.data.total
+    loadFavoriteStatus()
   } finally {
     loading.value = false
   }
