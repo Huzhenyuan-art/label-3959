@@ -198,6 +198,46 @@ import { getReviewPage, getReviewStats } from '../api/review'
 
 ---
 
+### 修复 #4：UserMapper 中使用 List 类型未导入
+
+**问题描述**：用户数据访问层接口 `UserMapper` 中新增的 `listDeletedUsers` 方法使用了 `List<User>` 作为返回值类型，但缺少 `java.util.List` 的导入语句，会导致编译失败。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+- 在添加导出 CSV 功能时，为 `UserMapper` 新增了 `listDeletedUsers` 方法，返回类型为 `List<User>`
+- 遗漏了 `import java.util.List;` 导入语句
+- Java 编译器无法识别 `List` 类型，导致编译错误
+
+**影响范围**：用户管理模块 - 数据访问层（导出 CSV 功能依赖此方法）
+
+**修复方案**：
+
+#### 1. 后端修复
+**文件**：[backend/src/main/java/com/example/demo/mapper/UserMapper.java](backend/src/main/java/com/example/demo/mapper/UserMapper.java#L11-L11)
+
+**修复内容**：
+在文件的导入语句区域添加 `java.util.List` 的导入：
+```java
+import org.apache.ibatis.annotations.Update;
+
+import java.util.List;
+```
+
+**关键点**：
+- `List` 是 `java.util` 包下的接口，必须显式导入
+- 导入语句应放置在其他 import 语句之后，类定义之前
+- 按照 Java 编码规范，静态导入、第三方库导入、JDK 标准库导入应分组并按字母排序
+
+**修复验证**：
+1. 在后端项目根目录执行 `mvn compile`
+2. 确认编译成功，无 `cannot find symbol` 错误
+3. 确认 UserMapper 接口中的 `listDeletedUsers` 方法可以正常编译
+4. 启动应用，测试用户导出 CSV 功能正常
+5. 确认已删除用户列表查询功能正常
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题

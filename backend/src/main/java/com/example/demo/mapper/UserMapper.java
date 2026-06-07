@@ -8,6 +8,8 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.List;
+
 /**
  * 用户 Mapper
  * 继承 BaseMapper 获得完整的单表 CRUD 能力
