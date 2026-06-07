@@ -64,8 +64,11 @@
               </template>
             </el-table-column>
             <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
-            <el-table-column label="操作" width="140" fixed="right">
+            <el-table-column label="操作" width="220" fixed="right">
               <template #default="{ row }">
+                <el-button link type="success" size="small" :icon="ShoppingCart" @click="openAddToCart(row)" :disabled="row.stock <= 0">
+                  加入购物车
+                </el-button>
                 <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
                 <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
               </template>
@@ -84,6 +87,32 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- 加入购物车弹窗 -->
+    <el-dialog v-model="cartDialogVisible" title="加入购物车" width="400px">
+      <el-form :model="cartForm" ref="cartFormRef" label-width="80px">
+        <el-form-item label="商品名称">
+          <span class="form-text">{{ cartForm.productName }}</span>
+        </el-form-item>
+        <el-form-item label="库存">
+          <el-tag :type="cartForm.productStock < 50 ? 'warning' : 'success'" size="small">
+            {{ cartForm.productStock }} 件
+          </el-tag>
+        </el-form-item>
+        <el-form-item label="购买数量" prop="quantity" :rules="[{ required: true, message: '请输入数量' }]">
+          <el-input-number
+            v-model="cartForm.quantity"
+            :min="1"
+            :max="cartForm.productStock"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="cartDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleAddToCart" :loading="cartSubmitting">确定</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑商品' : '新增商品'" width="500px">
@@ -115,8 +144,9 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus } from '@element-plus/icons-vue'
+import { Search, Plus, ShoppingCart } from '@element-plus/icons-vue'
 import { getProductPage, createProduct, updateProduct, deleteProduct, getCategoryStats } from '../api/product'
+import { addToCart } from '../api/cart'
 
 const loading = ref(false)
 const statsLoading = ref(false)
@@ -128,9 +158,13 @@ const categories = ref([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const cartDialogVisible = ref(false)
+const cartSubmitting = ref(false)
+const cartFormRef = ref()
 
 const query = reactive({ current: 1, size: 10, name: '', category: '' })
 const form = reactive({ id: null, name: '', category: '', price: 0, stock: 0, description: '' })
+const cartForm = reactive({ productId: null, productName: '', productStock: 0, quantity: 1 })
 
 const loadData = async () => {
   loading.value = true
@@ -200,6 +234,26 @@ const handleDelete = async (row) => {
   loadStats()
 }
 
+const openAddToCart = (row) => {
+  cartForm.productId = row.id
+  cartForm.productName = row.name
+  cartForm.productStock = row.stock
+  cartForm.quantity = 1
+  cartDialogVisible.value = true
+}
+
+const handleAddToCart = async () => {
+  await cartFormRef.value.validate()
+  cartSubmitting.value = true
+  try {
+    await addToCart({ productId: cartForm.productId, quantity: cartForm.quantity })
+    ElMessage.success('已加入购物车')
+    cartDialogVisible.value = false
+  } finally {
+    cartSubmitting.value = false
+  }
+}
+
 onMounted(() => {
   loadData()
   loadStats()
@@ -211,6 +265,7 @@ onMounted(() => {
 .feature-alert { border-radius: 8px; }
 .ml-8 { margin-left: 8px; }
 .stats-card, .main-card { border-radius: 12px; height: 100%; }
+.form-text { color: #303133; font-weight: 500; }
 
 .card-title { font-weight: 600; margin-right: 8px; }
 

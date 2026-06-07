@@ -52,6 +52,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/**").hasRole(RoleEnum.ADMIN.getCode())
                         .requestMatchers("/api/products/**").authenticated()
                         .requestMatchers("/api/orders/**").authenticated()
+                        .requestMatchers("/api/carts/**").authenticated()
                         .requestMatchers("/api/notifications/**").authenticated()
                         .anyRequest().authenticated()
                 )

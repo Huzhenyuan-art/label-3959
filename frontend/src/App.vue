@@ -25,6 +25,10 @@
           <el-icon><Goods /></el-icon>
           <span>商品管理</span>
         </el-menu-item>
+        <el-menu-item index="/cart">
+          <el-icon><ShoppingCart /></el-icon>
+          <span>购物车</span>
+        </el-menu-item>
         <el-menu-item index="/orders">
           <el-icon><List /></el-icon>
           <span>订单管理</span>
@@ -92,7 +96,7 @@
 import { useRouter } from 'vue-router'
 import { onMounted, onUnmounted, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Bell } from '@element-plus/icons-vue'
+import { Bell, ShoppingCart } from '@element-plus/icons-vue'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notification'
 

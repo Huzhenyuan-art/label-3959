@@ -67,3 +67,15 @@ CREATE TABLE IF NOT EXISTS `notification` (
   INDEX `idx_user_read` (`user_id`, `is_read`),
   INDEX `idx_created_time` (`created_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `cart` (
+  `id`           BIGINT        NOT NULL AUTO_INCREMENT,
+  `user_id`      BIGINT        NOT NULL,
+  `product_id`   BIGINT        NOT NULL,
+  `quantity`     INT           NOT NULL DEFAULT 1,
+  `created_time` DATETIME      DEFAULT NULL,
+  `updated_time` DATETIME      DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_product` (`user_id`, `product_id`),
+  INDEX `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

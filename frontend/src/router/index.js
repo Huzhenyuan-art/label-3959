@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import UserView from '../views/UserView.vue'
 import ProductView from '../views/ProductView.vue'
+import CartView from '../views/CartView.vue'
 import OrderView from '../views/OrderView.vue'
 import OrderDetailView from '../views/OrderDetailView.vue'
 import NotificationView from '../views/NotificationView.vue'
@@ -13,6 +14,7 @@ const routes = [
   { path: '/', component: HomeView, meta: { title: '首页概览', requiresAuth: true } },
   { path: '/users', component: UserView, meta: { title: '用户管理', requiresAuth: true, requiresAdmin: true } },
   { path: '/products', component: ProductView, meta: { title: '商品管理', requiresAuth: true } },
+  { path: '/cart', component: CartView, meta: { title: '购物车', requiresAuth: true } },
   { path: '/orders', component: OrderView, meta: { title: '订单管理', requiresAuth: true } },
   { path: '/orders/:id', component: OrderDetailView, meta: { title: '订单详情', requiresAuth: true } },
   { path: '/notifications', component: NotificationView, meta: { title: '消息中心', requiresAuth: true } }
