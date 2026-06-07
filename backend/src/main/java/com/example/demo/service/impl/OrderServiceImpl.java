@@ -8,6 +8,7 @@ import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderItem;
 import com.example.demo.mapper.OrderItemMapper;
 import com.example.demo.mapper.OrderMapper;
+import com.example.demo.service.NotificationService;
 import com.example.demo.service.OrderService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
+    private final NotificationService notificationService;
 
     @Override
     public IPage<OrderDetailDTO> pageOrders(int current, int size, String username, Integer status) {
@@ -79,6 +81,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (!SecurityUtil.isAdmin() && !existingOrder.getUserId().equals(SecurityUtil.getCurrentUserId())) {
             throw new SecurityException("无权修改他人订单");
         }
+        Integer oldStatus = existingOrder.getStatus();
         Order order = new Order();
         order.setId(id);
         order.setStatus(status);
@@ -87,6 +90,23 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (!success) {
             throw new IllegalArgumentException("更新失败，订单状态已变更，请刷新后重试（乐观锁冲突）");
         }
-        log.info("更新订单状态: id={}, status={}", id, status);
+        log.info("更新订单状态: id={}, oldStatus={}, newStatus={}", id, oldStatus, status);
+
+        if (!oldStatus.equals(status)) {
+            notificationService.sendOrderStatusNotification(existingOrder.getUserId(), id, oldStatus, status);
+        }
+    }
+
+    @Override
+    public void processRefund(Long id, boolean success, String reason) {
+        Order existingOrder = getById(id);
+        if (existingOrder == null) {
+            throw new IllegalArgumentException("订单不存在: " + id);
+        }
+        if (!SecurityUtil.isAdmin()) {
+            throw new SecurityException("只有管理员可以处理退款");
+        }
+        notificationService.sendRefundResultNotification(existingOrder.getUserId(), id, success, reason);
+        log.info("处理订单退款: id={}, success={}, reason={}", id, success, reason);
     }
 }

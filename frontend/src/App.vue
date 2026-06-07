@@ -29,6 +29,16 @@
           <el-icon><List /></el-icon>
           <span>订单管理</span>
         </el-menu-item>
+        <el-menu-item index="/notifications">
+          <el-icon><Bell /></el-icon>
+          <span>消息中心</span>
+          <el-badge
+            v-if="notificationStore.unreadCount > 0"
+            :value="notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount"
+            :max="99"
+            class="menu-badge"
+          />
+        </el-menu-item>
       </el-menu>
 
       <div class="aside-footer">
@@ -45,6 +55,17 @@
           <el-tag :type="authStore.isAdmin ? 'danger' : 'primary'" size="small">
             {{ authStore.isAdmin ? '管理员' : '普通用户' }}
           </el-tag>
+          <div class="notification-icon-wrapper" @click="goToNotifications">
+            <el-icon class="notification-icon" :size="20">
+              <Bell />
+            </el-icon>
+            <el-badge
+              v-if="notificationStore.unreadCount > 0"
+              :value="notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount"
+              :max="99"
+              class="notification-badge"
+            />
+          </div>
           <el-dropdown @command="handleCommand">
             <span class="user-info">
               <el-icon><UserFilled /></el-icon>
@@ -69,11 +90,53 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
+import { Bell } from '@element-plus/icons-vue'
 import { useAuthStore } from './store/auth'
+import { useNotificationStore } from './store/notification'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const notificationStore = useNotificationStore()
+
+let pollingTimer = null
+
+const startNotificationPolling = () => {
+  if (pollingTimer) {
+    clearInterval(pollingTimer)
+  }
+  pollingTimer = notificationStore.startPolling(30000)
+}
+
+const stopNotificationPolling = () => {
+  if (pollingTimer) {
+    clearInterval(pollingTimer)
+    pollingTimer = null
+  }
+}
+
+watch(() => authStore.isLoggedIn, (isLoggedIn) => {
+  if (isLoggedIn) {
+    startNotificationPolling()
+  } else {
+    stopNotificationPolling()
+  }
+}, { immediate: true })
+
+onMounted(() => {
+  if (authStore.isLoggedIn) {
+    startNotificationPolling()
+  }
+})
+
+onUnmounted(() => {
+  stopNotificationPolling()
+})
+
+const goToNotifications = () => {
+  router.push('/notifications')
+}
 
 const handleCommand = async (command) => {
   if (command === 'logout') {
@@ -83,6 +146,7 @@ const handleCommand = async (command) => {
         cancelButtonText: '取消',
         type: 'warning'
       })
+      stopNotificationPolling()
       authStore.logout()
       ElMessage.success('已退出登录')
       router.push('/login')
@@ -140,6 +204,10 @@ body {
   border-left: 3px solid #409EFF;
 }
 
+.menu-badge {
+  margin-left: auto;
+}
+
 .aside-footer {
   padding: 16px;
   display: flex;
@@ -178,6 +246,33 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.notification-icon-wrapper {
+  position: relative;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.notification-icon-wrapper:hover {
+  background-color: rgba(64, 158, 255, 0.1);
+}
+
+.notification-icon {
+  color: #606266;
+  transition: color 0.2s;
+}
+
+.notification-icon-wrapper:hover .notification-icon {
+  color: #409EFF;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
 }
 
 .user-info {

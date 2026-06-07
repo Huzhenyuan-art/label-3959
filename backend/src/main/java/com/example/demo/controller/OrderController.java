@@ -52,6 +52,14 @@ public class OrderController {
         return Result.ok();
     }
 
+    /** 处理订单退款 */
+    @PutMapping("/{id}/refund")
+    public Result<Void> processRefund(@PathVariable Long id,
+                                      @RequestBody ProcessRefundRequest req) {
+        orderService.processRefund(id, req.isSuccess(), req.getReason());
+        return Result.ok();
+    }
+
     @Data
     public static class CreateOrderRequest {
         private Order order;
@@ -62,5 +70,11 @@ public class OrderController {
     public static class UpdateStatusRequest {
         private Integer status;
         private Integer version;
+    }
+
+    @Data
+    public static class ProcessRefundRequest {
+        private boolean success;
+        private String reason;
     }
 }

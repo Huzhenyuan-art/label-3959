@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.mapper.NotificationMapper">
+
+    <resultMap id="NotificationMap" type="com.example.demo.entity.Notification">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="type" column="type"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="bizId" column="biz_id"/>
+        <result property="bizType" column="biz_type"/>
+        <result property="read" column="is_read"/>
+        <result property="createdTime" column="created_time"/>
+        <result property="readTime" column="read_time"/>
+    </resultMap>
+
+    <select id="selectUserNotificationPage" resultMap="NotificationMap">
+        SELECT
+            n.id,
+            n.user_id,
+            n.type,
+            n.title,
+            n.content,
+            n.biz_id,
+            n.biz_type,
+            n.is_read,
+            n.created_time,
+            n.read_time
+        FROM notification n
+        <where>
+            n.user_id = #{userId}
+            <if test="isRead != null">
+                AND n.is_read = #{isRead}
+            </if>
+            <if test="type != null">
+                AND n.type = #{type}
+            </if>
+        </where>
+        ORDER BY n.is_read ASC, n.created_time DESC
+    </select>
+
+    <select id="countUnread" resultType="int">
+        SELECT COUNT(*) FROM notification WHERE user_id = #{userId} AND is_read = 0
+    </select>
+
+    <update id="markAllAsRead">
+        UPDATE notification
+        SET is_read = 1, read_time = NOW()
+        WHERE user_id = #{userId} AND is_read = 0
+    </update>
+
+    <update id="markAsRead">
+        UPDATE notification
+        SET is_read = 1, read_time = NOW()
+        WHERE id = #{id} AND user_id = #{userId} AND is_read = 0
+    </update>
+
+</mapper>

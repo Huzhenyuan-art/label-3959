@@ -50,3 +50,20 @@ CREATE TABLE IF NOT EXISTS `order_item` (
   `price`        DECIMAL(10,2)  NOT NULL,
   PRIMARY KEY (`id`), INDEX `idx_order_id` (`order_id`), INDEX `idx_product_id` (`product_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `notification` (
+  `id`            BIGINT        NOT NULL AUTO_INCREMENT,
+  `user_id`       BIGINT        NOT NULL,
+  `type`          TINYINT       NOT NULL,
+  `title`         VARCHAR(100)  NOT NULL,
+  `content`       VARCHAR(500)  NOT NULL,
+  `biz_id`        BIGINT        DEFAULT NULL,
+  `biz_type`      VARCHAR(50)   DEFAULT NULL,
+  `is_read`       TINYINT       NOT NULL DEFAULT 0,
+  `created_time`  DATETIME      DEFAULT NULL,
+  `read_time`     DATETIME      DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `idx_user_id` (`user_id`),
+  INDEX `idx_user_read` (`user_id`, `is_read`),
+  INDEX `idx_created_time` (`created_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

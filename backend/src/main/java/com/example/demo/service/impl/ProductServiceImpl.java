@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.demo.dto.CategoryStatsDTO;
 import com.example.demo.entity.Product;
 import com.example.demo.mapper.ProductMapper;
+import com.example.demo.service.NotificationService;
 import com.example.demo.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +25,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> implements ProductService {
 
+    private static final int STOCK_WARNING_THRESHOLD = 10;
+
     private final ProductMapper productMapper;
+    private final NotificationService notificationService;
 
     @Override
     public IPage<Product> pageProducts(int current, int size, String name, String category) {
@@ -41,13 +45,31 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     public Product createProduct(Product product) {
         save(product);
         log.info("创建商品: id={}, name={}", product.getId(), product.getName());
+        checkStockWarning(product);
         return product;
     }
 
     @Override
     public Product updateProduct(Product product) {
+        Product oldProduct = getById(product.getId());
         updateById(product);
-        return getById(product.getId());
+        Product updated = getById(product.getId());
+        if (oldProduct == null || oldProduct.getStock() == null || !oldProduct.getStock().equals(updated.getStock())) {
+            checkStockWarning(updated);
+        }
+        return updated;
+    }
+
+    private void checkStockWarning(Product product) {
+        if (product.getStock() != null && product.getStock() <= STOCK_WARNING_THRESHOLD) {
+            notificationService.sendStockWarningNotification(
+                    product.getId(),
+                    product.getName(),
+                    product.getStock()
+            );
+            log.info("库存预警已发送: productId={}, name={}, stock={}",
+                    product.getId(), product.getName(), product.getStock());
+        }
     }
 
     @Override
