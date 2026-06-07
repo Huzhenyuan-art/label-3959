@@ -116,4 +116,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         log.info("批量创建用户: count={}", users.size());
         return users;
     }
+
+    @Override
+    public IPage<User> pageDeletedUsers(int current, int size, String username, Integer status, Integer minAge, Integer maxAge, String role) {
+        log.info("分页查询已删除用户: current={}, size={}, username={}, status={}, minAge={}, maxAge={}, role={}", current, size, username, status, minAge, maxAge, role);
+        return baseMapper.selectDeletedUsers(new Page<>(current, size), username, status, minAge, maxAge, role);
+    }
+
+    @Override
+    public User restoreUser(Long id, Integer version) {
+        int rows = baseMapper.restoreUserById(id, version);
+        if (rows == 0) {
+            throw new IllegalArgumentException("恢复失败，数据已被他人修改，请刷新后重试（乐观锁冲突）");
+        }
+        log.info("恢复用户成功: id={}, 新版本号={}", id, version + 1);
+        return getById(id);
+    }
 }

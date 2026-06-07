@@ -14,6 +14,23 @@
     </el-alert>
 
     <el-card shadow="never" class="main-card">
+      <!-- 视图切换栏 -->
+      <div class="view-switch">
+        <el-radio-group v-model="viewMode" size="large">
+          <el-radio-button value="normal" @change="switchToNormalView">
+            <el-icon><RefreshLeft /></el-icon>
+            <span style="margin-left:4px">正常用户</span>
+          </el-radio-button>
+          <el-radio-button value="deleted" @change="switchToDeletedView">
+            <el-icon><Delete /></el-icon>
+            <span style="margin-left:4px">已删除用户</span>
+          </el-radio-button>
+        </el-radio-group>
+        <el-tag v-if="isDeletedView" type="danger" size="large" style="margin-left:12px">
+          当前查看的是已逻辑删除的用户
+        </el-tag>
+      </div>
+
       <!-- 搜索栏 -->
       <div class="toolbar">
         <div class="search-area">
@@ -33,8 +50,8 @@
           <el-button @click="resetQuery">重置</el-button>
         </div>
         <div class="action-area">
-          <el-button type="success" @click="showBatchDialog" :icon="CopyDocument">批量插入演示</el-button>
-          <el-button type="primary" @click="openCreate" :icon="Plus">新增用户</el-button>
+          <el-button v-if="!isDeletedView" type="success" @click="showBatchDialog" :icon="CopyDocument">批量插入演示</el-button>
+          <el-button v-if="!isDeletedView" type="primary" @click="openCreate" :icon="Plus">新增用户</el-button>
         </div>
       </div>
 
@@ -68,10 +85,18 @@
             <span class="time-text">{{ formatTime(row.createdTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" :width="isDeletedView ? 120 : 160" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="openEdit(row)">编辑</el-button>
-            <el-button size="small" type="danger" link @click="handleDelete(row)">逻辑删除</el-button>
+            <template v-if="!isDeletedView">
+              <el-button size="small" type="primary" link @click="openEdit(row)">编辑</el-button>
+              <el-button size="small" type="danger" link @click="handleDelete(row)">逻辑删除</el-button>
+            </template>
+            <template v-else>
+              <el-button size="small" type="success" link @click="handleRestore(row)">
+                <el-icon><RefreshLeft /></el-icon>
+                <span>恢复用户</span>
+              </el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -146,8 +171,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, CopyDocument, QuestionFilled } from '@element-plus/icons-vue'
-import { getUserPage, createUser, updateUser, deleteUser, batchCreateUsers } from '../api/user'
+import { Search, Plus, CopyDocument, QuestionFilled, Delete, RefreshLeft } from '@element-plus/icons-vue'
+import { getUserPage, createUser, updateUser, deleteUser, batchCreateUsers, getDeletedUserPage, restoreUser } from '../api/user'
 import { useAuthStore } from '../store/auth'
 
 const authStore = useAuthStore()
@@ -160,6 +185,7 @@ const dialogVisible = ref(false)
 const batchDialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const viewMode = ref('normal')
 
 const query = reactive({ current: 1, size: 10, username: '', status: null, role: null, minAge: null, maxAge: null })
 const form = reactive({ id: null, username: '', email: '', age: 18, status: 1, role: 'USER', version: null })
@@ -168,16 +194,21 @@ const isEditingSelf = computed(() => {
   return isEdit.value && form.id === authStore.userInfo?.id
 })
 
+const isDeletedView = computed(() => viewMode.value === 'deleted')
+
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getUserPage({ 
-      ...query, 
+    const params = {
+      ...query,
       status: query.status ?? undefined,
       role: query.role ?? undefined,
       minAge: query.minAge ?? undefined,
       maxAge: query.maxAge ?? undefined
-    })
+    }
+    const res = isDeletedView.value
+      ? await getDeletedUserPage(params)
+      : await getUserPage(params)
     tableData.value = res.data.records
     total.value = res.data.total
   } finally {
@@ -257,6 +288,29 @@ const handleBatchCreate = async () => {
 
 const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 19) : '-'
 
+const switchToDeletedView = () => {
+  viewMode.value = 'deleted'
+  query.current = 1
+  loadData()
+}
+
+const switchToNormalView = () => {
+  viewMode.value = 'normal'
+  query.current = 1
+  loadData()
+}
+
+const handleRestore = async (row) => {
+  await ElMessageBox.confirm(
+    `确定恢复用户「${row.username}」？恢复后该用户可正常登录（deleted 字段设为 0，版本号自动 +1）`,
+    '确认恢复',
+    { type: 'warning' }
+  )
+  await restoreUser(row.id, { version: row.version })
+  ElMessage.success('恢复成功（乐观锁版本号已自动 +1）')
+  loadData()
+}
+
 onMounted(loadData)
 </script>
 
@@ -266,6 +320,7 @@ onMounted(loadData)
 .ml-8 { margin-left: 8px; }
 .ml-4 { margin-left: 4px; }
 .main-card { border-radius: 12px; }
+.view-switch { display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #ebeef5; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
 .search-area, .action-area { display: flex; align-items: center; gap: 8px; }
 .data-table { border-radius: 8px; }

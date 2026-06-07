@@ -75,4 +75,22 @@ public class UserController {
     public Result<List<User>> batchCreate(@RequestBody List<User> users) {
         return Result.ok(userService.batchCreate(users));
     }
+
+    /** 分页查询已逻辑删除的用户 */
+    @GetMapping("/deleted/page")
+    public Result<IPage<User>> pageDeleted(@RequestParam(defaultValue = "1") int current,
+                                           @RequestParam(defaultValue = "10") int size,
+                                           @RequestParam(required = false) String username,
+                                           @RequestParam(required = false) Integer status,
+                                           @RequestParam(required = false) Integer minAge,
+                                           @RequestParam(required = false) Integer maxAge,
+                                           @RequestParam(required = false) String role) {
+        return Result.ok(userService.pageDeletedUsers(current, size, username, status, minAge, maxAge, role));
+    }
+
+    /** 恢复已逻辑删除的用户（演示乐观锁） */
+    @PutMapping("/{id}/restore")
+    public Result<User> restore(@PathVariable Long id, @RequestBody User user) {
+        return Result.ok(userService.restoreUser(id, user.getVersion()));
+    }
 }

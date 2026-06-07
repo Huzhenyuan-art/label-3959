@@ -25,4 +25,10 @@ public interface UserService extends IService<User> {
 
     /** 批量创建示例 */
     List<User> batchCreate(List<User> users);
+
+    /** 分页查询已逻辑删除的用户 */
+    IPage<User> pageDeletedUsers(int current, int size, String username, Integer status, Integer minAge, Integer maxAge, String role);
+
+    /** 恢复已逻辑删除的用户（乐观锁保护） */
+    User restoreUser(Long id, Integer version);
 }
