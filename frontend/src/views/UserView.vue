@@ -50,6 +50,7 @@
           <el-button @click="resetQuery">重置</el-button>
         </div>
         <div class="action-area">
+          <el-button type="warning" @click="handleExport" :icon="Download" :loading="exporting">导出 CSV</el-button>
           <el-button v-if="!isDeletedView" type="success" @click="showBatchDialog" :icon="CopyDocument">批量插入演示</el-button>
           <el-button v-if="!isDeletedView" type="primary" @click="openCreate" :icon="Plus">新增用户</el-button>
         </div>
@@ -181,14 +182,15 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, CopyDocument, QuestionFilled, Delete, RefreshLeft } from '@element-plus/icons-vue'
-import { getUserPage, createUser, updateUser, deleteUser, batchCreateUsers, getDeletedUserPage, restoreUser } from '../api/user'
+import { Search, Plus, CopyDocument, QuestionFilled, Delete, RefreshLeft, Download } from '@element-plus/icons-vue'
+import { getUserPage, createUser, updateUser, deleteUser, batchCreateUsers, getDeletedUserPage, restoreUser, exportUsers } from '../api/user'
 import { useAuthStore } from '../store/auth'
 
 const authStore = useAuthStore()
 
 const loading = ref(false)
 const submitting = ref(false)
+const exporting = ref(false)
 const tableData = ref([])
 const total = ref(0)
 const dialogVisible = ref(false)
@@ -319,6 +321,45 @@ const handleRestore = async (row) => {
   await restoreUser(row.id, { version: row.version })
   ElMessage.success('恢复成功（乐观锁版本号已自动 +1）')
   loadData()
+}
+
+const handleExport = async () => {
+  if (total.value === 0) {
+    ElMessage.warning('当前筛选结果为空，没有可导出的数据')
+    return
+  }
+  exporting.value = true
+  try {
+    const params = {
+      username: query.username || undefined,
+      status: query.status ?? undefined,
+      role: query.role || undefined,
+      minAge: query.minAge ?? undefined,
+      maxAge: query.maxAge ?? undefined,
+      deleted: isDeletedView.value
+    }
+    const res = await exportUsers(params)
+    const blob = res.data
+    if (blob.type === 'application/json') {
+      const text = await blob.text()
+      const result = JSON.parse(text)
+      ElMessage.warning(result.message || '导出失败')
+      return
+    }
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const disposition = res.headers['content-disposition']
+    const fileName = disposition ? disposition.split('filename=')[1] : (isDeletedView.value ? '已删除用户.csv' : '用户列表.csv')
+    link.setAttribute('download', fileName)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } finally {
+    exporting.value = false
+  }
 }
 
 onMounted(loadData)

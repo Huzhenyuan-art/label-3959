@@ -31,4 +31,7 @@ public interface UserService extends IService<User> {
 
     /** 恢复已逻辑删除的用户（乐观锁保护） */
     User restoreUser(Long id, Integer version);
+
+    /** 条件查询已删除用户列表 */
+    List<User> listDeletedUsers(String username, Integer status, Integer minAge, Integer maxAge, String role);
 }

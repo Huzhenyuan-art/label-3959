@@ -4,9 +4,14 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.example.demo.common.Result;
 import com.example.demo.entity.User;
 import com.example.demo.service.UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -92,5 +97,64 @@ public class UserController {
     @PutMapping("/{id}/restore")
     public Result<User> restore(@PathVariable Long id, @RequestBody User user) {
         return Result.ok(userService.restoreUser(id, user.getVersion()));
+    }
+
+    /** 导出 CSV */
+    @GetMapping("/export")
+    public void export(@RequestParam(required = false) String username,
+                       @RequestParam(required = false) Integer status,
+                       @RequestParam(required = false) Integer minAge,
+                       @RequestParam(required = false) Integer maxAge,
+                       @RequestParam(required = false) String role,
+                       @RequestParam(defaultValue = "false") boolean deleted,
+                       HttpServletResponse response) throws IOException {
+        List<User> users = deleted
+                ? userService.listDeletedUsers(username, status, minAge, maxAge, role)
+                : userService.listUsers(username, status, minAge, maxAge, role);
+
+        if (users.isEmpty()) {
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"code\":400,\"message\":\"当前筛选结果为空，没有可导出的数据\",\"data\":null}");
+            return;
+        }
+
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setCharacterEncoding("UTF-8");
+        String fileName = (deleted ? "已删除用户_" : "用户列表_") + System.currentTimeMillis() + ".csv";
+        response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
+
+        try (OutputStreamWriter writer = new OutputStreamWriter(response.getOutputStream(), StandardCharsets.UTF_8)) {
+            writer.write('\ufeff');
+
+            writer.write("ID,用户名,邮箱,角色,年龄,状态,版本,创建时间\n");
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+            for (User user : users) {
+                String roleText = "ADMIN".equals(user.getRole()) ? "管理员" : "普通用户";
+                String statusText = user.getStatus() != null && user.getStatus() == 1 ? "启用" : "禁用";
+                String createdTime = user.getCreatedTime() != null ? user.getCreatedTime().format(formatter) : "";
+
+                writer.write(String.format("%d,%s,%s,%s,%d,%s,%d,%s\n",
+                        user.getId(),
+                        escapeCsv(user.getUsername()),
+                        escapeCsv(user.getEmail()),
+                        roleText,
+                        user.getAge() != null ? user.getAge() : 0,
+                        statusText,
+                        user.getVersion() != null ? user.getVersion() : 1,
+                        createdTime
+                ));
+            }
+            writer.flush();
+        }
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) return "";
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
     }
 }

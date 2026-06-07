@@ -136,4 +136,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         log.info("恢复用户成功: id={}, 新版本号={}", id, version + 1);
         return getById(id);
     }
+
+    @Override
+    public List<User> listDeletedUsers(String username, Integer status, Integer minAge, Integer maxAge, String role) {
+        log.info("查询已删除用户列表: username={}, status={}, minAge={}, maxAge={}, role={}", username, status, minAge, maxAge, role);
+        return baseMapper.listDeletedUsers(username, status, minAge, maxAge, role);
+    }
 }
