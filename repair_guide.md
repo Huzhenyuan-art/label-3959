@@ -1014,6 +1014,64 @@ Object.assign(form, { ...row, password: '' })
 
 ---
 
+### 修复 #12：添加用户时填写密码仍提示"请输入密码"
+
+**问题描述**：管理员在新增用户时，明明填写了密码字段，但点击确定后仍然提示"请输入密码"，表单无法提交。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+`User` 实体类的 `password` 字段使用了 `@JsonIgnore` 注解，该注解会**同时影响序列化和反序列化**：
+- **序列化**（Java 对象 → JSON，返回给前端）：password 字段被忽略 ✅（这是期望的安全行为）
+- **反序列化**（JSON → Java 对象，接收前端数据）：password 字段也被忽略 ❌（这是问题所在）
+
+导致即使前端正确填写了密码并发送给后端，Jackson 在反序列化时会忽略 password 字段，后端 User 对象中的 password 始终为 `null`，从而触发密码必填校验错误。
+
+**影响范围**：用户管理模块 - 新增用户功能（密码无法正确传递到后端）
+
+**修复方案**：
+
+#### 1. 后端修复
+
+**文件**：[backend/src/main/java/com/example/demo/entity/User.java](backend/src/main/java/com/example/demo/entity/User.java#L25-L27)
+
+**修复内容**：
+将 `@JsonIgnore` 替换为 `@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)`：
+
+```java
+// 修复前
+/** 密码（加密存储） */
+@com.fasterxml.jackson.annotation.JsonIgnore
+private String password;
+
+// 修复后
+/** 密码（加密存储） */
+@com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
+private String password;
+```
+
+**关键点**：
+- `@JsonIgnore`：完全忽略字段，序列化和反序列化都不处理
+- `@JsonProperty(access = WRITE_ONLY)`：只写模式，**反序列化时接收（前端→后端），序列化时忽略（后端→前端）**
+- 这样既保证了安全性（密码不会返回给前端），又能正常接收前端传来的密码
+- Jackson 的 `JsonProperty.Access` 枚举有三个值：
+  - `READ_ONLY`：只读，序列化时输出，反序列化时忽略
+  - `WRITE_ONLY`：只写，反序列化时接收，序列化时忽略 ← 我们需要的
+  - `READ_WRITE`：读写都处理（默认行为）
+
+**修复验证**：
+1. 启动后端和前端服务
+2. 使用管理员账号登录系统，进入「用户管理」页面
+3. 点击「新增用户」按钮
+4. 填写用户名、邮箱（格式正确）、密码（如 `123456`）、年龄等信息
+5. 点击「确定」，确认创建成功，不再提示"请输入密码"
+6. 使用新创建的账号和密码登录系统，确认可以正常登录
+7. 测试编辑用户时修改密码：进入编辑页面，输入新密码，点击确定，确认更新成功
+8. 验证密码不返回给前端：在浏览器开发者工具中查看用户列表接口的响应数据，确认不包含 password 字段
+9. 执行 `mvn compile` 确认后端编译成功，无任何错误
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题
