@@ -20,4 +20,10 @@ public class GlobalExceptionHandler {
         log.warn("参数异常: {}", e.getMessage());
         return Result.fail(400, e.getMessage());
     }
+
+    @ExceptionHandler(SecurityException.class)
+    public Result<Void> handleSecurityException(SecurityException e) {
+        log.warn("安全异常: {}", e.getMessage());
+        return Result.fail(403, e.getMessage());
+    }
 }

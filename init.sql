@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS `user` (
   `username`     VARCHAR(50)  NOT NULL,
   `email`        VARCHAR(100) DEFAULT NULL,
   `age`          INT          DEFAULT NULL,
+  `password`     VARCHAR(255) NOT NULL,
+  `role`         VARCHAR(20)  NOT NULL DEFAULT 'USER',
   `status`       TINYINT      NOT NULL DEFAULT 1,
   `deleted`      TINYINT      NOT NULL DEFAULT 0,
   `version`      INT          NOT NULL DEFAULT 1,

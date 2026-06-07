@@ -22,6 +22,13 @@ public class User {
 
     private Integer age;
 
+    /** 密码（加密存储） */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String password;
+
+    /** 角色: ADMIN-管理员 USER-普通用户 */
+    private String role;
+
     /** 状态: 0-禁用 1-启用 */
     private Integer status;
 

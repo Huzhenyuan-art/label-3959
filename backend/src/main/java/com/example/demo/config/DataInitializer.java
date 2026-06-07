@@ -5,6 +5,7 @@ import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.Product;
 import com.example.demo.entity.User;
+import com.example.demo.enums.RoleEnum;
 import com.example.demo.mapper.OrderItemMapper;
 import com.example.demo.mapper.OrderMapper;
 import com.example.demo.mapper.ProductMapper;
@@ -12,16 +13,13 @@ import com.example.demo.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 应用启动时自动插入演示数据
- * 使用 Java 代码 + JDBC 写入，彻底避免 SQL 文件编码问题
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -31,6 +29,7 @@ public class DataInitializer implements CommandLineRunner {
     private final ProductMapper productMapper;
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
@@ -47,22 +46,25 @@ public class DataInitializer implements CommandLineRunner {
 
     private void insertUsers() {
         List<User> users = List.of(
-                makeUser("张三", "zhangsan@example.com", 25, 1),
-                makeUser("李四", "lisi@example.com", 30, 1),
-                makeUser("王五", "wangwu@example.com", 22, 1),
-                makeUser("赵六", "zhaoliu@example.com", 35, 0),
-                makeUser("钱七", "qianqi@example.com", 28, 1),
-                makeUser("孙八", "sunba@example.com", 32, 1)
+                makeUser("admin", "admin@example.com", 30, 1, RoleEnum.ADMIN.getCode(), "admin123"),
+                makeUser("张三", "zhangsan@example.com", 25, 1, RoleEnum.USER.getCode(), "123456"),
+                makeUser("李四", "lisi@example.com", 30, 1, RoleEnum.USER.getCode(), "123456"),
+                makeUser("王五", "wangwu@example.com", 22, 1, RoleEnum.USER.getCode(), "123456"),
+                makeUser("赵六", "zhaoliu@example.com", 35, 0, RoleEnum.USER.getCode(), "123456"),
+                makeUser("钱七", "qianqi@example.com", 28, 1, RoleEnum.USER.getCode(), "123456"),
+                makeUser("孙八", "sunba@example.com", 32, 1, RoleEnum.USER.getCode(), "123456")
         );
         users.forEach(userMapper::insert);
         log.info("插入用户 {} 条", users.size());
     }
 
-    private User makeUser(String username, String email, int age, int status) {
+    private User makeUser(String username, String email, int age, int status, String role, String rawPassword) {
         User u = new User();
         u.setUsername(username);
         u.setEmail(email);
         u.setAge(age);
+        u.setPassword(passwordEncoder.encode(rawPassword));
+        u.setRole(role);
         u.setStatus(status);
         u.setDeleted(0);
         u.setVersion(1);

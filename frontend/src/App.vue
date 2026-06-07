@@ -1,10 +1,10 @@
 <template>
-  <el-container class="app-layout">
-    <!-- 侧边栏 -->
+  <router-view v-if="$route.path === '/login'" />
+  <el-container v-else class="app-layout">
     <el-aside width="220px" class="app-aside">
       <div class="logo">
         <el-icon size="24" color="#409EFF"><DataBoard /></el-icon>
-        <span>MyBatis Plus</span>
+        <span>权限管理系统</span>
       </div>
       <el-menu
         router
@@ -17,7 +17,7 @@
           <el-icon><House /></el-icon>
           <span>首页概览</span>
         </el-menu-item>
-        <el-menu-item index="/users">
+        <el-menu-item v-if="authStore.isAdmin" index="/users">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
@@ -32,19 +32,33 @@
       </el-menu>
 
       <div class="aside-footer">
-        <div class="tech-badge">Spring Boot 3</div>
-        <div class="tech-badge">MyBatis Plus 3.5</div>
-        <div class="tech-badge">Vue 3 + Element Plus</div>
+        <div class="tech-badge">Spring Boot 3 + Spring Security</div>
+        <div class="tech-badge">JWT + MyBatis Plus 3.5</div>
+        <div class="tech-badge">Vue 3 + Element Plus + Pinia</div>
       </div>
     </el-aside>
 
-    <!-- 主内容区 -->
     <el-container>
       <el-header class="app-header">
         <span class="page-title">{{ $route.meta.title }}</span>
-        <el-tag type="success" size="small">
-          <el-icon><CircleCheck /></el-icon> 服务运行中
-        </el-tag>
+        <div class="header-right">
+          <el-tag :type="authStore.isAdmin ? 'danger' : 'primary'" size="small">
+            {{ authStore.isAdmin ? '管理员' : '普通用户' }}
+          </el-tag>
+          <el-dropdown @command="handleCommand">
+            <span class="user-info">
+              <el-icon><UserFilled /></el-icon>
+              {{ authStore.userInfo?.username }}
+              <el-icon class="arrow"><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile">个人信息</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </el-header>
       <el-main class="app-main">
         <router-view />
@@ -52,6 +66,33 @@
     </el-container>
   </el-container>
 </template>
+
+<script setup>
+import { useRouter } from 'vue-router'
+import { ElMessageBox, ElMessage } from 'element-plus'
+import { useAuthStore } from './store/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const handleCommand = async (command) => {
+  if (command === 'logout') {
+    try {
+      await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+      authStore.logout()
+      ElMessage.success('已退出登录')
+      router.push('/login')
+    } catch {
+    }
+  } else if (command === 'profile') {
+    ElMessage.info('个人信息功能开发中')
+  }
+}
+</script>
 
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -131,6 +172,29 @@ body {
   font-size: 18px;
   font-weight: 600;
   color: #1a202c;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: #303133;
+  font-size: 14px;
+}
+
+.user-info:hover {
+  color: #409EFF;
+}
+
+.user-info .arrow {
+  font-size: 12px;
 }
 
 .app-main {

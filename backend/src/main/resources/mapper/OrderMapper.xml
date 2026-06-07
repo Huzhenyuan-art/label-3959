@@ -75,6 +75,9 @@
             <if test="status != null">
                 AND o.status = #{status}
             </if>
+            <if test="userId != null">
+                AND o.user_id = #{userId}
+            </if>
         </where>
         ORDER BY o.created_time DESC
     </select>

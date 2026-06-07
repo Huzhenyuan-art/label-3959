@@ -29,3 +29,7 @@ logging:
   level:
     com.example.demo: debug
     com.baomidou.mybatisplus: info
+
+jwt:
+  secret: mybatis-plus-demo-secret-key-1234567890abcdef
+  expire-hours: 24

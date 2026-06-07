@@ -9,6 +9,7 @@ import com.example.demo.entity.OrderItem;
 import com.example.demo.mapper.OrderItemMapper;
 import com.example.demo.mapper.OrderMapper;
 import com.example.demo.service.OrderService;
+import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,10 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * 订单 Service 实现
- * 演示：多表联查分页、事务 + 批量插入、乐观锁更新状态
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -31,17 +28,19 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Override
     public IPage<OrderDetailDTO> pageOrders(int current, int size, String username, Integer status) {
-        // 演示：XML 多表联查 + MyBatis Plus 分页插件
+        Long currentUserId = SecurityUtil.isAdmin() ? null : SecurityUtil.getCurrentUserId();
         Page<OrderDetailDTO> page = new Page<>(current, size);
-        return orderMapper.selectOrderPage(page, username, status);
+        return orderMapper.selectOrderPage(page, username, status, currentUserId);
     }
 
     @Override
     public OrderDetailDTO getOrderDetail(Long id) {
-        // 演示：XML 多表联查获取完整订单详情（含明细和商品）
         OrderDetailDTO detail = orderMapper.selectOrderDetail(id);
         if (detail == null) {
             throw new IllegalArgumentException("订单不存在: " + id);
+        }
+        if (!SecurityUtil.isAdmin() && !detail.getUserId().equals(SecurityUtil.getCurrentUserId())) {
+            throw new SecurityException("无权查看他人订单");
         }
         return detail;
     }
@@ -49,20 +48,20 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Order createOrder(Order order, List<OrderItem> items) {
-        // 演示：事务 + 计算总金额 + 批量插入明细
         BigDecimal total = items.stream()
                 .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         order.setTotalAmount(total);
         order.setStatus(0);
         order.setVersion(1);
+        if (!SecurityUtil.isAdmin()) {
+            order.setUserId(SecurityUtil.getCurrentUserId());
+        }
         save(order);
 
-        // 演示：批量插入订单明细
         items.forEach(item -> item.setOrderId(order.getId()));
         orderItemMapper.insert(items.get(0));
         if (items.size() > 1) {
-            // saveBatch 批量插入
             for (int i = 1; i < items.size(); i++) {
                 orderItemMapper.insert(items.get(i));
             }
@@ -73,7 +72,13 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Override
     public void updateOrderStatus(Long id, Integer status, Integer version) {
-        // 演示：乐观锁更新 - 通过 version 防止并发修改
+        Order existingOrder = getById(id);
+        if (existingOrder == null) {
+            throw new IllegalArgumentException("订单不存在: " + id);
+        }
+        if (!SecurityUtil.isAdmin() && !existingOrder.getUserId().equals(SecurityUtil.getCurrentUserId())) {
+            throw new SecurityException("无权修改他人订单");
+        }
         Order order = new Order();
         order.setId(id);
         order.setStatus(status);
