@@ -28,8 +28,10 @@ request.interceptors.response.use(
     }
     const data = res.data
     if (data.code !== 200) {
-      ElMessage.error(data.message || '请求失败')
-      return Promise.reject(new Error(data.message))
+      if (!res.config.skipErrorToast) {
+        ElMessage.error(data.message || '请求失败')
+      }
+      return Promise.reject({ message: data.message, errors: data.errors, response: res })
     }
     return data
   },
@@ -41,7 +43,7 @@ request.interceptors.response.use(
       router.push('/login')
     } else if (err.response?.status === 403) {
       ElMessage.error('权限不足，无法访问')
-    } else {
+    } else if (!err.config?.skipErrorToast) {
       ElMessage.error(err.message || '网络错误，请稍后重试')
     }
     return Promise.reject(err)

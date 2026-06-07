@@ -127,11 +127,11 @@
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑用户（含乐观锁）' : '新增用户（自动填充）'" width="480px">
       <el-form :model="form" ref="formRef" label-width="100px">
-        <el-form-item label="用户名" prop="username" :rules="[{ required: true, message: '请输入用户名' }]">
-          <el-input v-model="form.username" />
+        <el-form-item label="用户名" prop="username" :rules="[{ required: true, message: '请输入用户名' }]" :error="formErrors.username">
+          <el-input v-model="form.username" @input="clearFieldError('username')" />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="form.email" />
+        <el-form-item label="邮箱" prop="email" :error="formErrors.email">
+          <el-input v-model="form.email" @input="clearFieldError('email')" />
         </el-form-item>
         <el-form-item label="年龄" prop="age">
           <el-input-number v-model="form.age" :min="1" :max="120" />
@@ -201,6 +201,7 @@ const viewMode = ref('normal')
 
 const query = reactive({ current: 1, size: 10, username: '', status: null, role: null, minAge: null, maxAge: null })
 const form = reactive({ id: null, username: '', email: '', age: 18, status: 1, role: 'USER', version: null })
+const formErrors = reactive({ username: '', email: '' })
 
 const isEditingSelf = computed(() => {
   return isEdit.value && form.id === authStore.userInfo?.id
@@ -238,19 +239,33 @@ const resetQuery = () => {
   loadData()
 }
 
+const clearFormErrors = () => {
+  formErrors.username = ''
+  formErrors.email = ''
+}
+
+const clearFieldError = (field) => {
+  if (formErrors[field]) {
+    formErrors[field] = ''
+  }
+}
+
 const openCreate = () => {
   isEdit.value = false
   Object.assign(form, { id: null, username: '', email: '', age: 18, status: 1, role: 'USER', version: null })
+  clearFormErrors()
   dialogVisible.value = true
 }
 
 const openEdit = (row) => {
   isEdit.value = true
   Object.assign(form, { ...row })
+  clearFormErrors()
   dialogVisible.value = true
 }
 
 const handleSubmit = async () => {
+  clearFormErrors()
   await formRef.value.validate()
   if (isEditingSelf.value && form.role === 'USER') {
     ElMessage.error('不能将自己降为普通用户')
@@ -259,14 +274,28 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     if (isEdit.value) {
-      await updateUser(form.id, form)
+      await updateUser(form.id, form, { skipErrorToast: true })
       ElMessage.success('更新成功（乐观锁版本号已自动 +1）')
     } else {
-      await createUser(form)
+      await createUser(form, { skipErrorToast: true })
       ElMessage.success('创建成功（createdTime 已自动填充）')
     }
     dialogVisible.value = false
     loadData()
+  } catch (err) {
+    if (err.errors) {
+      if (err.errors.username) {
+        formErrors.username = err.errors.username
+      }
+      if (err.errors.email) {
+        formErrors.email = err.errors.email
+      }
+      if (!err.errors.username && !err.errors.email) {
+        ElMessage.error(err.message || '操作失败')
+      }
+    } else {
+      ElMessage.error(err.message || err || '操作失败')
+    }
   } finally {
     submitting.value = false
   }

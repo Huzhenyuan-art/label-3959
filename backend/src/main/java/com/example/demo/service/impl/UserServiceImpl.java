@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.demo.entity.User;
 import com.example.demo.enums.RoleEnum;
+import com.example.demo.exception.ValidationException;
 import com.example.demo.mapper.UserMapper;
 import com.example.demo.service.UserService;
 import com.example.demo.util.SecurityUtil;
@@ -15,7 +16,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -52,6 +55,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public User createUser(User user) {
+        validateUnique(user, null);
         if (StringUtils.hasText(user.getPassword())) {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
@@ -68,8 +72,35 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return user;
     }
 
+    private void validateUnique(User user, Long excludeId) {
+        Map<String, String> errors = new HashMap<>();
+
+        if (StringUtils.hasText(user.getUsername())) {
+            LambdaQueryWrapper<User> usernameWrapper = new LambdaQueryWrapper<User>()
+                    .eq(User::getUsername, user.getUsername())
+                    .ne(excludeId != null, User::getId, excludeId);
+            if (count(usernameWrapper) > 0) {
+                errors.put("username", "用户名已存在");
+            }
+        }
+
+        if (StringUtils.hasText(user.getEmail())) {
+            LambdaQueryWrapper<User> emailWrapper = new LambdaQueryWrapper<User>()
+                    .eq(User::getEmail, user.getEmail())
+                    .ne(excludeId != null, User::getId, excludeId);
+            if (count(emailWrapper) > 0) {
+                errors.put("email", "邮箱已存在");
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            throw new ValidationException(errors);
+        }
+    }
+
     @Override
     public User updateUser(User user) {
+        validateUnique(user, user.getId());
         Long currentUserId = SecurityUtil.getCurrentUserId();
         if (currentUserId != null && currentUserId.equals(user.getId())) {
             User existingUser = getById(user.getId());

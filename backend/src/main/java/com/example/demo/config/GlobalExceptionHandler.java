@@ -1,6 +1,7 @@
 package com.example.demo.config;
 
 import com.example.demo.common.Result;
+import com.example.demo.exception.ValidationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -19,6 +20,12 @@ public class GlobalExceptionHandler {
     public Result<Void> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("参数异常: {}", e.getMessage());
         return Result.fail(400, e.getMessage());
+    }
+
+    @ExceptionHandler(ValidationException.class)
+    public Result<Void> handleValidationException(ValidationException e) {
+        log.warn("校验异常: {}, errors: {}", e.getMessage(), e.getErrors());
+        return Result.fail(400, e.getMessage(), e.getErrors());
     }
 
     @ExceptionHandler(SecurityException.class)

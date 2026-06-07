@@ -2,6 +2,8 @@ package com.example.demo.common;
 
 import lombok.Data;
 
+import java.util.Map;
+
 /**
  * 统一响应体
  */
@@ -10,6 +12,7 @@ public class Result<T> {
     private int code;
     private String message;
     private T data;
+    private Map<String, String> errors;
 
     public static <T> Result<T> ok(T data) {
         Result<T> r = new Result<>();
@@ -27,6 +30,14 @@ public class Result<T> {
         Result<T> r = new Result<>();
         r.code = code;
         r.message = message;
+        return r;
+    }
+
+    public static <T> Result<T> fail(int code, String message, Map<String, String> errors) {
+        Result<T> r = new Result<>();
+        r.code = code;
+        r.message = message;
+        r.errors = errors;
         return r;
     }
 
