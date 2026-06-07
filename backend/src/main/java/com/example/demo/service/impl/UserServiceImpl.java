@@ -93,6 +93,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public void deleteUser(Long id) {
+        Long currentUserId = SecurityUtil.getCurrentUserId();
+        if (currentUserId != null && currentUserId.equals(id)) {
+            throw new IllegalArgumentException("不能删除当前登录用户");
+        }
         removeById(id);
         log.info("逻辑删除用户: id={}", id);
     }

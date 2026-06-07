@@ -89,7 +89,17 @@
           <template #default="{ row }">
             <template v-if="!isDeletedView">
               <el-button size="small" type="primary" link @click="openEdit(row)">编辑</el-button>
-              <el-button size="small" type="danger" link @click="handleDelete(row)">逻辑删除</el-button>
+              <el-button
+                size="small"
+                type="danger"
+                link
+                :disabled="row.id === authStore.userInfo?.id"
+                @click="handleDelete(row)">
+                <el-tooltip v-if="row.id === authStore.userInfo?.id" content="不能删除当前登录用户" placement="top">
+                  <span>逻辑删除</span>
+                </el-tooltip>
+                <template v-else>逻辑删除</template>
+              </el-button>
             </template>
             <template v-else>
               <el-button size="small" type="success" link @click="handleRestore(row)">
