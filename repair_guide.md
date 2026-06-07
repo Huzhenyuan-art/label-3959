@@ -76,6 +76,86 @@ public void deleteUser(Long id) {
 
 ---
 
+### 修复 #2：商品页面无法查看评价
+
+**问题描述**：用户在商品管理页面没有查看商品评价的入口，无法直接了解商品的用户评价情况。虽然有独立的"商品评价"页面，但在商品列表中无法快速查看某个商品的评价。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+- 商品管理页面的操作列缺少"查看评价"按钮
+- 没有针对单个商品的评价查看弹窗
+
+**影响范围**：商品管理模块 - 商品列表功能
+
+**修复方案**：
+
+#### 1. 前端修复
+**文件**：[frontend/src/views/ProductView.vue](frontend/src/views/ProductView.vue#L67-L78)
+
+**修复内容**：
+
+1. 在操作列增加"查看评价"按钮：
+```vue
+<el-button link type="warning" size="small" :icon="ChatDotRound" @click="openViewReviews(row)">
+  查看评价
+</el-button>
+```
+
+2. 添加评价弹窗，包含：
+- 评价统计区域（平均分、总评价数、各评分分布进度条）
+- 按评分筛选功能
+- 评价列表表格（用户、评分、内容、评价时间）
+- 分页功能
+
+3. 添加相关方法：
+```javascript
+const openViewReviews = (row) => {
+  currentProductId.value = row.id
+  reviewProductName.value = row.name
+  reviewQuery.current = 1
+  reviewQuery.rating = null
+  reviewStats.value = null
+  reviewList.value = []
+  reviewTotal.value = 0
+  reviewDialogVisible.value = true
+  loadProductReviews()
+}
+
+const loadProductReviews = async () => {
+  const [reviewRes, statsRes] = await Promise.all([
+    getReviewPage({ ...reviewQuery, productId: currentProductId.value }),
+    getReviewStats(currentProductId.value)
+  ])
+  reviewList.value = reviewRes.data.records
+  reviewTotal.value = reviewRes.data.total
+  reviewStats.value = statsRes.data
+}
+```
+
+4. 导入评价相关 API 和图标：
+```javascript
+import { ChatDotRound } from '@element-plus/icons-vue'
+import { getReviewPage, getReviewStats } from '../api/review'
+```
+
+**关键点**：
+- 操作列宽度从 220px 调整为 320px 以容纳新按钮
+- 评价弹窗宽度 700px，顶部边距 5vh，适合展示较多内容
+- 同时加载评价列表和统计数据，提升用户体验
+- 支持按评分筛选评价，方便用户快速了解不同评分的评价内容
+
+**修复验证**：
+1. 登录系统，进入"商品管理"页面
+2. 确认每个商品操作列都有"查看评价"按钮（黄色警告色）
+3. 点击任意商品的"查看评价"按钮
+4. 确认弹窗显示该商品的评价统计（平均分、各评分分布）
+5. 确认评价列表显示正确，支持分页和按评分筛选
+6. 对暂无评价的商品，显示"该商品暂无评价"提示
+7. 关闭弹窗后再次点击其他商品，确认显示对应商品的评价
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题

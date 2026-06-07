@@ -64,10 +64,13 @@
               </template>
             </el-table-column>
             <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
-            <el-table-column label="操作" width="220" fixed="right">
+            <el-table-column label="操作" width="320" fixed="right">
               <template #default="{ row }">
                 <el-button link type="success" size="small" :icon="ShoppingCart" @click="openAddToCart(row)" :disabled="row.stock <= 0">
                   加入购物车
+                </el-button>
+                <el-button link type="warning" size="small" :icon="ChatDotRound" @click="openViewReviews(row)">
+                  查看评价
                 </el-button>
                 <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
                 <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
@@ -138,15 +141,71 @@
         <el-button type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 查看评价弹窗 -->
+    <el-dialog v-model="reviewDialogVisible" :title="`「${reviewProductName}」的评价" width="700px" top="5vh">
+      <div v-if="reviewStats" class="review-stats">
+        <div class="stats-overview">
+          <div class="avg-rating">
+            <span class="avg-number">{{ Number(reviewStats.avgRating).toFixed(1) }}</span>
+            <el-rate v-model="avgRatingDisplay" disabled :max="5" :show-score="false" />
+            <span class="total-count">{{ reviewStats.totalCount }} 条评价</span>
+          </div>
+          <div class="rating-distribution">
+            <div v-for="r in [5,4,3,2,1]" :key="r" class="rating-bar">
+              <span class="rating-label">{{ r }}星</span>
+              <el-progress :percentage="getRatingPercent(r)" :show-text="false" :stroke-width="8" :color="getRatingColor(r)" />
+              <span class="rating-count">{{ getRatingCount(r) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="review-filter">
+        <el-select v-model="reviewQuery.rating" placeholder="按评分筛选" clearable style="width: 140px" @change="loadProductReviews">
+          <el-option v-for="r in ratingOptions" :key="r.value" :label="r.label" :value="r.value" />
+        </el-select>
+      </div>
+
+      <el-table :data="reviewList" v-loading="reviewLoading" stripe border empty-text="该商品暂无评价">
+        <el-table-column prop="username" label="评价用户" width="120">
+          <template #default="{ row }">
+            <el-tag size="small">{{ row.username || '匿名用户' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="rating" label="评分" width="120">
+          <template #default="{ row }">
+            <el-rate v-model="row.rating" disabled :max="5" :show-score="false" size="small" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="content" label="评价内容" min-width="280" />
+        <el-table-column prop="createdTime" label="评价时间" width="160">
+          <template #default="{ row }">
+            <span class="time-text">{{ formatTime(row.createdTime) }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-pagination
+        class="review-pagination"
+        v-model:current-page="reviewQuery.current"
+        v-model:page-size="reviewQuery.size"
+        :total="reviewTotal"
+        :page-sizes="[5, 10, 20]"
+        layout="total, sizes, prev, pager, next"
+        @change="loadProductReviews"
+      />
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, ShoppingCart } from '@element-plus/icons-vue'
+import { Search, Plus, ShoppingCart, ChatDotRound } from '@element-plus/icons-vue'
 import { getProductPage, createProduct, updateProduct, deleteProduct, getCategoryStats } from '../api/product'
 import { addToCart } from '../api/cart'
+import { getReviewPage, getReviewStats } from '../api/review'
 
 const loading = ref(false)
 const statsLoading = ref(false)
@@ -165,6 +224,43 @@ const cartFormRef = ref()
 const query = reactive({ current: 1, size: 10, name: '', category: '' })
 const form = reactive({ id: null, name: '', category: '', price: 0, stock: 0, description: '' })
 const cartForm = reactive({ productId: null, productName: '', productStock: 0, quantity: 1 })
+
+const reviewDialogVisible = ref(false)
+const reviewLoading = ref(false)
+const reviewList = ref([])
+const reviewTotal = ref(0)
+const reviewStats = ref(null)
+const reviewProductName = ref('')
+const currentProductId = ref(null)
+const reviewQuery = reactive({ current: 1, size: 10, rating: null })
+
+const ratingOptions = [
+  { value: 5, label: '5星 - 非常好' },
+  { value: 4, label: '4星 - 好' },
+  { value: 3, label: '3星 - 一般' },
+  { value: 2, label: '2星 - 差' },
+  { value: 1, label: '1星 - 非常差' }
+]
+
+const avgRatingDisplay = computed(() => reviewStats.value ? Math.round(Number(reviewStats.value.avgRating)) : 0)
+
+const getRatingCount = (r) => {
+  if (!reviewStats.value) return 0
+  const map = { 1: 'rating1Count', 2: 'rating2Count', 3: 'rating3Count', 4: 'rating4Count', 5: 'rating5Count' }
+  return reviewStats.value[map[r]] || 0
+}
+
+const getRatingPercent = (r) => {
+  if (!reviewStats.value || reviewStats.value.totalCount === 0) return 0
+  return Math.round((getRatingCount(r) / reviewStats.value.totalCount) * 100)
+}
+
+const getRatingColor = (r) => {
+  const colors = { 5: '#67C23A', 4: '#909399', 3: '#E6A23C', 2: '#F56C6C', 1: '#F56C6C' }
+  return colors[r] || '#909399'
+}
+
+const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 19) : '-'
 
 const loadData = async () => {
   loading.value = true
@@ -254,6 +350,34 @@ const handleAddToCart = async () => {
   }
 }
 
+const openViewReviews = (row) => {
+  currentProductId.value = row.id
+  reviewProductName.value = row.name
+  reviewQuery.current = 1
+  reviewQuery.rating = null
+  reviewStats.value = null
+  reviewList.value = []
+  reviewTotal.value = 0
+  reviewDialogVisible.value = true
+  loadProductReviews()
+}
+
+const loadProductReviews = async () => {
+  if (!currentProductId.value) return
+  reviewLoading.value = true
+  try {
+    const [reviewRes, statsRes] = await Promise.all([
+      getReviewPage({ ...reviewQuery, productId: currentProductId.value }),
+      getReviewStats(currentProductId.value)
+    ])
+    reviewList.value = reviewRes.data.records
+    reviewTotal.value = reviewRes.data.total
+    reviewStats.value = statsRes.data
+  } finally {
+    reviewLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadData()
   loadStats()
@@ -278,4 +402,20 @@ onMounted(() => {
 
 .price { color: #e6a23c; font-weight: 600; }
 .pagination { margin-top: 16px; justify-content: flex-end; }
+.time-text { font-size: 13px; color: #718096; }
+
+.review-stats { margin-bottom: 16px; padding: 16px; background: #fafafa; border-radius: 8px; }
+.review-stats .stats-overview { display: flex; gap: 32px; align-items: flex-start; }
+.review-stats .avg-rating { display: flex; flex-direction: column; align-items: center; min-width: 140px; }
+.review-stats .avg-number { font-size: 40px; font-weight: 700; color: #e6a23c; line-height: 1; }
+.review-stats .avg-rating :deep(.el-rate) { margin: 6px 0; }
+.review-stats .total-count { font-size: 12px; color: #909399; }
+.review-stats .rating-distribution { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.review-stats .rating-bar { display: flex; align-items: center; gap: 10px; }
+.review-stats .rating-label { width: 36px; font-size: 12px; color: #606266; }
+.review-stats .rating-bar :deep(.el-progress) { flex: 1; }
+.review-stats .rating-count { width: 40px; font-size: 12px; color: #909399; text-align: right; }
+
+.review-filter { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.review-pagination { margin-top: 16px; justify-content: flex-end; }
 </style>
