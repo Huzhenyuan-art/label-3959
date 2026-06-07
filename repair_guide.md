@@ -825,6 +825,195 @@ const formatDate = (date) => {
 
 ---
 
+### 修复 #11：添加用户时密码字段缺失报错 + 邮箱格式无校验
+
+**问题描述**：管理员在添加用户时，填入不规范的邮箱（如 `invalid-email`），点击确定时页面报错：
+```
+### Error updating database. Cause: java.sql.SQLException: Field 'password' doesn't have a default value
+### SQL: INSERT INTO user ( username, email, age, role, status, deleted, version, created_time, updated_time ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ? )
+```
+同时，系统未对邮箱格式进行校验，允许填入不符合规范的邮箱地址。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+1. **密码字段缺失**：数据库 `user` 表的 `password` 字段定义为 `NOT NULL` 且没有默认值，但前端新增用户表单中缺少密码输入字段，导致插入时 `password` 为 `null`，触发数据库约束错误
+2. **邮箱格式无校验**：前后端均未对邮箱格式进行正则校验，导致不规范的邮箱可以提交
+3. **后端校验不完整**：虽然前端没有密码字段，但后端也未对新增用户时的密码必填性进行校验
+
+**影响范围**：用户管理模块 - 新增/编辑用户功能
+
+**修复方案**：
+
+#### 1. 后端修复
+
+**文件 1**：[backend/src/main/java/com/example/demo/service/impl/UserServiceImpl.java](backend/src/main/java/com/example/demo/service/impl/UserServiceImpl.java#L57-L108)
+
+**修复内容 1 - 重命名并增强校验方法**：
+将 `validateUnique` 方法重命名为 `validateUser`，增加邮箱格式校验和密码必填校验：
+
+```java
+// 修复前
+private void validateUnique(User user, Long excludeId) {
+    // 仅校验用户名和邮箱唯一性
+}
+
+// 修复后
+private void validateUser(User user, Long excludeId, boolean isCreate) {
+    Map<String, String> errors = new HashMap<>();
+
+    // 用户名唯一性校验（原有逻辑）
+    if (StringUtils.hasText(user.getUsername())) {
+        LambdaQueryWrapper<User> usernameWrapper = new LambdaQueryWrapper<User>()
+                .eq(User::getUsername, user.getUsername())
+                .ne(excludeId != null, User::getId, excludeId);
+        if (count(usernameWrapper) > 0) {
+            errors.put("username", "用户名已存在");
+        }
+    }
+
+    // 邮箱格式校验 + 唯一性校验（新增）
+    if (StringUtils.hasText(user.getEmail())) {
+        String emailRegex = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$";
+        if (!user.getEmail().matches(emailRegex)) {
+            errors.put("email", "请输入正确的邮箱格式");
+        } else {
+            LambdaQueryWrapper<User> emailWrapper = new LambdaQueryWrapper<User>()
+                    .eq(User::getEmail, user.getEmail())
+                    .ne(excludeId != null, User::getId, excludeId);
+            if (count(emailWrapper) > 0) {
+                errors.put("email", "邮箱已存在");
+            }
+        }
+    }
+
+    // 新增用户时密码必填校验（新增）
+    if (isCreate && !StringUtils.hasText(user.getPassword())) {
+        errors.put("password", "请输入密码");
+    }
+
+    if (!errors.isEmpty()) {
+        throw new ValidationException(errors);
+    }
+}
+```
+
+**修复内容 2 - 更新调用方**：
+```java
+// createUser 方法
+validateUser(user, null, true);  // true 表示新增，需要密码必填校验
+
+// updateUser 方法
+validateUser(user, user.getId(), false);  // false 表示编辑，密码可选
+```
+
+**关键点**：
+- 邮箱正则表达式 `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$` 可校验大部分常见邮箱格式
+- 先校验格式，格式通过后再校验唯一性，避免无效的数据库查询
+- 新增用户时（`isCreate=true`）密码必填，编辑用户时密码可选（留空表示不修改）
+- 所有校验错误通过 `ValidationException` 抛出，包含字段级错误信息，前端可在对应字段旁显示
+
+#### 2. 前端修复
+
+**文件 1**：[frontend/src/views/UserView.vue](frontend/src/views/UserView.vue#L130-L141)
+
+**修复内容 1 - 新增密码输入字段**：
+
+```vue
+<!-- 新增用户时 - 密码必填 -->
+<el-form-item v-if="!isEdit" label="密码" prop="password" 
+  :rules="[{ required: true, message: '请输入密码' }]" 
+  :error="formErrors.password">
+  <el-input v-model="form.password" type="password" show-password 
+    placeholder="请输入密码" @input="clearFieldError('password')" />
+</el-form-item>
+
+<!-- 编辑用户时 - 密码可选 -->
+<el-form-item v-if="isEdit" label="密码" prop="password" 
+  :error="formErrors.password">
+  <el-input v-model="form.password" type="password" show-password 
+    placeholder="不修改请留空" @input="clearFieldError('password')" />
+</el-form-item>
+```
+
+**修复内容 2 - 新增邮箱格式校验规则**：
+```javascript
+const emailRules = [
+  { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+]
+```
+
+**修复内容 3 - 邮箱字段绑定校验规则**：
+```vue
+<el-form-item label="邮箱" prop="email" :rules="emailRules" :error="formErrors.email">
+  <el-input v-model="form.email" @input="clearFieldError('email')" placeholder="请输入邮箱" />
+</el-form-item>
+```
+
+**修复内容 4 - 添加密码字段错误处理**：
+```javascript
+// formErrors 新增 password 字段
+const formErrors = reactive({ username: '', email: '', password: '' })
+
+// clearFormErrors 清除 password 错误
+const clearFormErrors = () => {
+  formErrors.username = ''
+  formErrors.email = ''
+  formErrors.password = ''
+}
+
+// handleSubmit 处理 password 错误
+} catch (err) {
+  if (err.errors) {
+    if (err.errors.password) {
+      formErrors.password = err.errors.password
+    }
+    // ...
+  }
+}
+```
+
+**修复内容 5 - 表单数据初始化包含 password**：
+```javascript
+const form = reactive({ 
+  id: null, username: '', email: '', password: '', 
+  age: 18, status: 1, role: 'USER', version: null 
+})
+
+// openCreate 初始化密码为空
+Object.assign(form, { id: null, username: '', email: '', password: '', ... })
+
+// openEdit 编辑时清空密码字段（不展示原有密码）
+Object.assign(form, { ...row, password: '' })
+```
+
+**关键点**：
+- 密码输入框使用 `type="password"` 和 `show-password` 属性，支持密码显示/隐藏
+- 新增用户时密码字段必填（带 `required` 规则），编辑用户时密码字段可选
+- 编辑用户时密码字段默认清空，不显示用户原有密码（安全考虑）
+- 邮箱使用 Element Plus 内置的 `type: 'email'` 校验规则，在 `blur` 时触发
+- 前端校验 + 后端校验双重保障，即使绕过前端校验，后端也会拦截
+- 所有字段错误都通过 `formErrors` 在对应字段旁显示，用户输入时自动清除
+
+**修复验证**：
+1. 启动后端和前端服务
+2. 使用管理员账号登录系统，进入「用户管理」页面
+3. 点击「新增用户」按钮
+4. **验证密码必填**：不填写密码，直接点击「确定」，确认密码字段下方显示「请输入密码」
+5. **验证邮箱格式**：输入不规范邮箱（如 `invalid-email`、`test@`、`test@.com`），点击「确定」或输入框失焦，确认邮箱字段下方显示「请输入正确的邮箱格式」
+6. **验证正常提交**：填写正确的用户名、邮箱（如 `test@example.com`）、密码、年龄等信息，点击「确定」，确认创建成功
+7. **验证重复用户名**：再次使用相同用户名创建用户，确认用户名字段下方显示「用户名已存在」
+8. **验证重复邮箱**：使用相同邮箱创建用户，确认邮箱字段下方显示「邮箱已存在」
+9. **验证编辑用户**：点击「编辑」按钮，确认密码字段显示「不修改请留空」
+10. **验证编辑时密码可选**：不修改密码，直接修改其他字段（如年龄），点击「确定」，确认更新成功，密码保持不变
+11. **验证编辑时修改密码**：在编辑时输入新密码，点击「确定」，确认更新成功，使用新密码可登录
+12. **验证编辑时邮箱格式校验**：在编辑时将邮箱改为不规范格式，确认显示「请输入正确的邮箱格式」
+13. **验证其他已填内容不被覆盖**：故意触发邮箱格式错误，确认用户名、年龄等其他已填内容保持不变
+14. **验证错误自动清除**：在出错字段重新输入时，确认错误提示自动消失
+15. 执行 `mvn compile` 确认后端编译成功，无任何错误
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题

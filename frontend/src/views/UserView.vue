@@ -130,8 +130,14 @@
         <el-form-item label="用户名" prop="username" :rules="[{ required: true, message: '请输入用户名' }]" :error="formErrors.username">
           <el-input v-model="form.username" @input="clearFieldError('username')" />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email" :error="formErrors.email">
-          <el-input v-model="form.email" @input="clearFieldError('email')" />
+        <el-form-item label="邮箱" prop="email" :rules="emailRules" :error="formErrors.email">
+          <el-input v-model="form.email" @input="clearFieldError('email')" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item v-if="!isEdit" label="密码" prop="password" :rules="[{ required: true, message: '请输入密码' }]" :error="formErrors.password">
+          <el-input v-model="form.password" type="password" show-password placeholder="请输入密码" @input="clearFieldError('password')" />
+        </el-form-item>
+        <el-form-item v-if="isEdit" label="密码" prop="password" :error="formErrors.password">
+          <el-input v-model="form.password" type="password" show-password placeholder="不修改请留空" @input="clearFieldError('password')" />
         </el-form-item>
         <el-form-item label="年龄" prop="age">
           <el-input-number v-model="form.age" :min="1" :max="120" />
@@ -200,8 +206,12 @@ const formRef = ref()
 const viewMode = ref('normal')
 
 const query = reactive({ current: 1, size: 10, username: '', status: null, role: null, minAge: null, maxAge: null })
-const form = reactive({ id: null, username: '', email: '', age: 18, status: 1, role: 'USER', version: null })
-const formErrors = reactive({ username: '', email: '' })
+const form = reactive({ id: null, username: '', email: '', password: '', age: 18, status: 1, role: 'USER', version: null })
+const formErrors = reactive({ username: '', email: '', password: '' })
+
+const emailRules = [
+  { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+]
 
 const isEditingSelf = computed(() => {
   return isEdit.value && form.id === authStore.userInfo?.id
@@ -242,6 +252,7 @@ const resetQuery = () => {
 const clearFormErrors = () => {
   formErrors.username = ''
   formErrors.email = ''
+  formErrors.password = ''
 }
 
 const clearFieldError = (field) => {
@@ -252,14 +263,14 @@ const clearFieldError = (field) => {
 
 const openCreate = () => {
   isEdit.value = false
-  Object.assign(form, { id: null, username: '', email: '', age: 18, status: 1, role: 'USER', version: null })
+  Object.assign(form, { id: null, username: '', email: '', password: '', age: 18, status: 1, role: 'USER', version: null })
   clearFormErrors()
   dialogVisible.value = true
 }
 
 const openEdit = (row) => {
   isEdit.value = true
-  Object.assign(form, { ...row })
+  Object.assign(form, { ...row, password: '' })
   clearFormErrors()
   dialogVisible.value = true
 }
@@ -290,7 +301,10 @@ const handleSubmit = async () => {
       if (err.errors.email) {
         formErrors.email = err.errors.email
       }
-      if (!err.errors.username && !err.errors.email) {
+      if (err.errors.password) {
+        formErrors.password = err.errors.password
+      }
+      if (!err.errors.username && !err.errors.email && !err.errors.password) {
         ElMessage.error(err.message || '操作失败')
       }
     } else {

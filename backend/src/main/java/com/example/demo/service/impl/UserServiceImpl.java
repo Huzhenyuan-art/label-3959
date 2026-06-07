@@ -55,7 +55,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public User createUser(User user) {
-        validateUnique(user, null);
+        validateUser(user, null, true);
         if (StringUtils.hasText(user.getPassword())) {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
@@ -72,7 +72,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return user;
     }
 
-    private void validateUnique(User user, Long excludeId) {
+    private void validateUser(User user, Long excludeId, boolean isCreate) {
         Map<String, String> errors = new HashMap<>();
 
         if (StringUtils.hasText(user.getUsername())) {
@@ -85,12 +85,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         if (StringUtils.hasText(user.getEmail())) {
-            LambdaQueryWrapper<User> emailWrapper = new LambdaQueryWrapper<User>()
-                    .eq(User::getEmail, user.getEmail())
-                    .ne(excludeId != null, User::getId, excludeId);
-            if (count(emailWrapper) > 0) {
-                errors.put("email", "邮箱已存在");
+            String emailRegex = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$";
+            if (!user.getEmail().matches(emailRegex)) {
+                errors.put("email", "请输入正确的邮箱格式");
+            } else {
+                LambdaQueryWrapper<User> emailWrapper = new LambdaQueryWrapper<User>()
+                        .eq(User::getEmail, user.getEmail())
+                        .ne(excludeId != null, User::getId, excludeId);
+                if (count(emailWrapper) > 0) {
+                    errors.put("email", "邮箱已存在");
+                }
             }
+        }
+
+        if (isCreate && !StringUtils.hasText(user.getPassword())) {
+            errors.put("password", "请输入密码");
         }
 
         if (!errors.isEmpty()) {
@@ -100,7 +109,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public User updateUser(User user) {
-        validateUnique(user, user.getId());
+        validateUser(user, user.getId(), false);
         Long currentUserId = SecurityUtil.getCurrentUserId();
         if (currentUserId != null && currentUserId.equals(user.getId())) {
             User existingUser = getById(user.getId());
