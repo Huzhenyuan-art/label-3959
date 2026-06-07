@@ -1,12 +1,14 @@
 package com.example.demo.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.example.demo.annotation.OperationLog;
 import com.example.demo.common.Result;
 import com.example.demo.dto.CouponCreateDTO;
 import com.example.demo.dto.CouponUseResultDTO;
 import com.example.demo.dto.UserCouponDTO;
 import com.example.demo.entity.CouponTemplate;
 import com.example.demo.entity.UserCoupon;
+import com.example.demo.enums.OperationTypeEnum;
 import com.example.demo.service.CouponService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +24,7 @@ public class CouponController {
     private final CouponService couponService;
 
     @PostMapping("/templates")
+    @OperationLog(type = OperationTypeEnum.COUPON_CREATE, targetType = "couponTemplate", targetIdExpression = "#result.data.id")
     public Result<CouponTemplate> createTemplate(@RequestBody CouponCreateDTO dto) {
         return Result.ok(couponService.createTemplate(dto));
     }
@@ -41,6 +44,7 @@ public class CouponController {
     }
 
     @PutMapping("/templates/{id}/status")
+    @OperationLog(type = OperationTypeEnum.COUPON_UPDATE, targetType = "couponTemplate", targetIdExpression = "#id")
     public Result<CouponTemplate> updateTemplateStatus(@PathVariable Long id, @RequestParam Integer status) {
         return Result.ok(couponService.updateTemplateStatus(id, status));
     }

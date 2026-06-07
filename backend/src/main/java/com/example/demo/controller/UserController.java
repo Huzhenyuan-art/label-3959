@@ -1,8 +1,10 @@
 package com.example.demo.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.example.demo.annotation.OperationLog;
 import com.example.demo.common.Result;
 import com.example.demo.entity.User;
+import com.example.demo.enums.OperationTypeEnum;
 import com.example.demo.service.UserService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -57,12 +59,14 @@ public class UserController {
 
     /** 创建用户（演示自动填充） */
     @PostMapping
+    @OperationLog(type = OperationTypeEnum.USER_CREATE, targetType = "user", targetIdExpression = "#result.data.id")
     public Result<User> create(@RequestBody User user) {
         return Result.ok(userService.createUser(user));
     }
 
     /** 更新用户（演示乐观锁） */
     @PutMapping("/{id}")
+    @OperationLog(type = OperationTypeEnum.USER_UPDATE, targetType = "user", targetIdExpression = "#id")
     public Result<User> update(@PathVariable Long id, @RequestBody User user) {
         user.setId(id);
         return Result.ok(userService.updateUser(user));
@@ -70,6 +74,7 @@ public class UserController {
 
     /** 逻辑删除用户（演示 @TableLogic） */
     @DeleteMapping("/{id}")
+    @OperationLog(type = OperationTypeEnum.USER_DELETE, targetType = "user", targetIdExpression = "#id")
     public Result<Void> delete(@PathVariable Long id) {
         userService.deleteUser(id);
         return Result.ok();
@@ -95,6 +100,7 @@ public class UserController {
 
     /** 恢复已逻辑删除的用户（演示乐观锁） */
     @PutMapping("/{id}/restore")
+    @OperationLog(type = OperationTypeEnum.USER_RESTORE, targetType = "user", targetIdExpression = "#id")
     public Result<User> restore(@PathVariable Long id, @RequestBody User user) {
         return Result.ok(userService.restoreUser(id, user.getVersion()));
     }

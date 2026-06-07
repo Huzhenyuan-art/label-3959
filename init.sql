@@ -215,3 +215,35 @@ CREATE TABLE IF NOT EXISTS `refund_order` (
   INDEX `idx_status` (`status`),
   INDEX `idx_created_time` (`created_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `operation_log` (
+  `id`                 BIGINT         NOT NULL AUTO_INCREMENT,
+  `operation_type`     VARCHAR(50)    NOT NULL COMMENT '操作类型',
+  `operation_category` VARCHAR(50)    NOT NULL COMMENT '操作分类',
+  `operation_desc`     VARCHAR(100)   NOT NULL COMMENT '操作描述',
+  `operator_id`        BIGINT         DEFAULT NULL COMMENT '操作人ID',
+  `operator_name`      VARCHAR(50)    DEFAULT NULL COMMENT '操作人用户名',
+  `operator_role`      VARCHAR(20)    DEFAULT NULL COMMENT '操作人角色',
+  `target_id`          BIGINT         DEFAULT NULL COMMENT '操作目标ID',
+  `target_type`        VARCHAR(50)    DEFAULT NULL COMMENT '操作目标类型',
+  `before_data`        JSON           DEFAULT NULL COMMENT '变更前数据(JSON)',
+  `after_data`         JSON           DEFAULT NULL COMMENT '变更后数据(JSON)',
+  `request_method`     VARCHAR(10)    DEFAULT NULL COMMENT '请求方法',
+  `request_uri`        VARCHAR(200)   DEFAULT NULL COMMENT '请求URI',
+  `request_params`     TEXT           DEFAULT NULL COMMENT '请求参数(JSON)',
+  `ip_address`         VARCHAR(50)    DEFAULT NULL COMMENT 'IP地址',
+  `user_agent`         VARCHAR(500)   DEFAULT NULL COMMENT '用户代理',
+  `status`             TINYINT        NOT NULL DEFAULT 1 COMMENT '操作状态: 0-失败 1-成功',
+  `error_message`      VARCHAR(1000)  DEFAULT NULL COMMENT '错误信息',
+  `duration`           BIGINT         DEFAULT NULL COMMENT '执行耗时(毫秒)',
+  `operation_time`     DATETIME       NOT NULL COMMENT '操作时间',
+  PRIMARY KEY (`id`),
+  INDEX `idx_operation_type` (`operation_type`),
+  INDEX `idx_operation_category` (`operation_category`),
+  INDEX `idx_operator_id` (`operator_id`),
+  INDEX `idx_operator_name` (`operator_name`),
+  INDEX `idx_target_id` (`target_id`),
+  INDEX `idx_target_type` (`target_type`),
+  INDEX `idx_operation_time` (`operation_time`),
+  INDEX `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='操作审计日志表';

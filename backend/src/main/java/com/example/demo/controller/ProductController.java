@@ -1,9 +1,11 @@
 package com.example.demo.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.example.demo.annotation.OperationLog;
 import com.example.demo.common.Result;
 import com.example.demo.dto.CategoryStatsDTO;
 import com.example.demo.entity.Product;
+import com.example.demo.enums.OperationTypeEnum;
 import com.example.demo.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -50,17 +52,20 @@ public class ProductController {
     }
 
     @PostMapping
+    @OperationLog(type = OperationTypeEnum.PRODUCT_CREATE, targetType = "product", targetIdExpression = "#result.data.id")
     public Result<Product> create(@RequestBody Product product) {
         return Result.ok(productService.createProduct(product));
     }
 
     @PutMapping("/{id}")
+    @OperationLog(type = OperationTypeEnum.PRODUCT_UPDATE, targetType = "product", targetIdExpression = "#id")
     public Result<Product> update(@PathVariable Long id, @RequestBody Product product) {
         product.setId(id);
         return Result.ok(productService.updateProduct(product));
     }
 
     @DeleteMapping("/{id}")
+    @OperationLog(type = OperationTypeEnum.PRODUCT_DELETE, targetType = "product", targetIdExpression = "#id")
     public Result<Void> delete(@PathVariable Long id) {
         productService.deleteProduct(id);
         return Result.ok();

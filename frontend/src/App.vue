@@ -21,6 +21,10 @@
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
+        <el-menu-item v-if="authStore.isAdmin" index="/operation-logs">
+          <el-icon><Document /></el-icon>
+          <span>操作审计日志</span>
+        </el-menu-item>
         <el-menu-item index="/products">
           <el-icon><Goods /></el-icon>
           <span>商品管理</span>
@@ -120,7 +124,7 @@
 import { useRouter } from 'vue-router'
 import { onMounted, onUnmounted, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location, Box, RefreshRight } from '@element-plus/icons-vue'
+import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location, Box, RefreshRight, Document } from '@element-plus/icons-vue'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notification'
 

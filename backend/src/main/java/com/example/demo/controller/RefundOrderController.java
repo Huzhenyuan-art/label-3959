@@ -1,11 +1,13 @@
 package com.example.demo.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.example.demo.annotation.OperationLog;
 import com.example.demo.common.Result;
 import com.example.demo.dto.RefundApplyDTO;
 import com.example.demo.dto.RefundAuditDTO;
 import com.example.demo.dto.RefundDetailDTO;
 import com.example.demo.entity.RefundOrder;
+import com.example.demo.enums.OperationTypeEnum;
 import com.example.demo.service.RefundOrderService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +45,7 @@ public class RefundOrderController {
     }
 
     @PostMapping("/audit")
+    @OperationLog(type = OperationTypeEnum.REFUND_AUDIT, targetType = "refundOrder", targetIdExpression = "#dto.refundId")
     public Result<Void> audit(@Valid @RequestBody RefundAuditDTO dto) {
         refundOrderService.auditRefund(dto);
         return Result.ok();

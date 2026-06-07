@@ -1,10 +1,12 @@
 package com.example.demo.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.example.demo.annotation.OperationLog;
 import com.example.demo.common.Result;
 import com.example.demo.dto.OrderDetailDTO;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderItem;
+import com.example.demo.enums.OperationTypeEnum;
 import com.example.demo.service.OrderService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -42,12 +44,14 @@ public class OrderController {
 
     /** 创建订单（事务 + 批量插入明细） */
     @PostMapping
+    @OperationLog(type = OperationTypeEnum.ORDER_CREATE, targetType = "order", targetIdExpression = "#result.data.id")
     public Result<Order> create(@RequestBody CreateOrderRequest req) {
         return Result.ok(orderService.createOrder(req.getOrder(), req.getItems(), req.getUserCouponId(), req.getAddressId()));
     }
 
     /** 更新订单状态（演示乐观锁） */
     @PutMapping("/{id}/status")
+    @OperationLog(type = OperationTypeEnum.ORDER_UPDATE, targetType = "order", targetIdExpression = "#id")
     public Result<Void> updateStatus(@PathVariable Long id,
                                      @RequestBody UpdateStatusRequest req) {
         orderService.updateOrderStatus(id, req.getStatus(), req.getVersion());
