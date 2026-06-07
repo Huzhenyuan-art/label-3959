@@ -137,6 +137,40 @@
         </div>
       </el-card>
 
+      <!-- 库存预占记录 -->
+      <el-card shadow="never" class="reservation-card" v-if="reservations.length > 0">
+        <template #header>
+          <div class="card-header">
+            <span class="card-title">库存预占记录</span>
+            <div>
+              <el-tag type="success" size="small">防止超卖</el-tag>
+              <el-tag type="warning" size="small" class="ml-8">下单预占/取消释放/收货扣减</el-tag>
+            </div>
+          </div>
+        </template>
+        <el-table :data="reservations" border stripe>
+          <el-table-column prop="id" label="预占ID" width="90" />
+          <el-table-column prop="productName" label="商品名称" min-width="160" />
+          <el-table-column prop="quantity" label="预占数量" width="100" align="center" />
+          <el-table-column prop="statusDesc" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="reservationTagType(row.status)" size="small">{{ row.statusDesc }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="expireTime" label="过期时间" width="170">
+            <template #default="{ row }">
+              <span class="time-text">{{ formatTime(row.expireTime) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="releaseReason" label="释放原因" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="createdTime" label="创建时间" width="170">
+            <template #default="{ row }">
+              <span class="time-text">{{ formatTime(row.createdTime) }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+
       <!-- SQL 说明 -->
       <el-card shadow="never" class="sql-card">
         <template #header>
@@ -185,10 +219,12 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { getOrderDetail } from '../api/order'
 import { submitReview, getPendingReviews } from '../api/review'
+import { getStockReservationsByOrderId } from '../api/stockReservation'
 
 const route = useRoute()
 const loading = ref(true)
 const order = ref(null)
+const reservations = ref([])
 const reviewDialogVisible = ref(false)
 const reviewSubmitting = ref(false)
 const reviewFormRef = ref()
@@ -204,7 +240,15 @@ const reviewForm = reactive({
 })
 
 const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger'][s] || ''
+const reservationTagType = (s) => ['warning', 'info', 'success'][s] || ''
 const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 19) : '-'
+
+const loadReservations = async () => {
+  try {
+    const res = await getStockReservationsByOrderId(route.params.id)
+    reservations.value = res.data
+  } catch (e) {}
+}
 
 const loadReviewedItems = async () => {
   try {
@@ -257,9 +301,10 @@ onMounted(async () => {
   try {
     const res = await getOrderDetail(route.params.id)
     order.value = res.data
-    if (order.value.status === 3) {
-      await loadReviewedItems()
-    }
+    await Promise.all([
+      loadReservations(),
+      order.value.status === 3 ? loadReviewedItems() : Promise.resolve()
+    ])
   } finally {
     loading.value = false
   }

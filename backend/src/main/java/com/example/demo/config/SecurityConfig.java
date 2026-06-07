@@ -55,6 +55,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/coupons/**").authenticated()
                         .requestMatchers("/api/products/**").authenticated()
                         .requestMatchers("/api/orders/**").authenticated()
+                        .requestMatchers("/api/stock-reservations/**").authenticated()
                         .requestMatchers("/api/carts/**").authenticated()
                         .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/reviews/page").permitAll()

@@ -167,3 +167,26 @@ ALTER TABLE `order` ADD COLUMN `receiver_name` VARCHAR(50) DEFAULT NULL AFTER `a
 ALTER TABLE `order` ADD COLUMN `receiver_phone` VARCHAR(20) DEFAULT NULL AFTER `receiver_name`;
 ALTER TABLE `order` ADD COLUMN `receiver_address` VARCHAR(300) DEFAULT NULL AFTER `receiver_phone`;
 ALTER TABLE `order` ADD INDEX `idx_address_id` (`address_id`);
+
+ALTER TABLE `product` ADD COLUMN `reserved_stock` INT NOT NULL DEFAULT 0 AFTER `stock`;
+ALTER TABLE `product` ADD INDEX `idx_reserved_stock` (`reserved_stock`);
+
+CREATE TABLE IF NOT EXISTS `stock_reservation` (
+  `id`              BIGINT        NOT NULL AUTO_INCREMENT,
+  `order_id`        BIGINT        NOT NULL,
+  `order_item_id`   BIGINT        DEFAULT NULL,
+  `product_id`      BIGINT        NOT NULL,
+  `product_name`    VARCHAR(100)  NOT NULL,
+  `quantity`        INT           NOT NULL,
+  `status`          TINYINT       NOT NULL DEFAULT 0,
+  `expire_time`     DATETIME      DEFAULT NULL,
+  `release_reason`  VARCHAR(200)  DEFAULT NULL,
+  `created_time`    DATETIME      DEFAULT NULL,
+  `updated_time`    DATETIME      DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `idx_order_id` (`order_id`),
+  INDEX `idx_product_id` (`product_id`),
+  INDEX `idx_status` (`status`),
+  INDEX `idx_expire_time` (`expire_time`),
+  INDEX `idx_created_time` (`created_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

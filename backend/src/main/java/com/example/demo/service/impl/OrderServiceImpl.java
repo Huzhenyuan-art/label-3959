@@ -11,9 +11,11 @@ import com.example.demo.entity.UserAddress;
 import com.example.demo.mapper.OrderItemMapper;
 import com.example.demo.mapper.OrderMapper;
 import com.example.demo.mapper.UserAddressMapper;
+import com.example.demo.dto.StockReservationCreateDTO;
 import com.example.demo.service.CouponService;
 import com.example.demo.service.NotificationService;
 import com.example.demo.service.OrderService;
+import com.example.demo.service.StockReservationService;
 import com.example.demo.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -33,6 +37,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private final NotificationService notificationService;
     private final CouponService couponService;
     private final UserAddressMapper userAddressMapper;
+    private final StockReservationService stockReservationService;
+
+    private static final int RESERVATION_EXPIRE_MINUTES = 30;
 
     @Override
     public IPage<OrderDetailDTO> pageOrders(int current, int size, String username, Integer status) {
@@ -118,6 +125,22 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 orderItemMapper.insert(items.get(i));
             }
         }
+
+        StockReservationCreateDTO reservationDTO = new StockReservationCreateDTO();
+        reservationDTO.setOrderId(order.getId());
+        reservationDTO.setExpireTime(LocalDateTime.now().plusMinutes(RESERVATION_EXPIRE_MINUTES));
+        List<StockReservationCreateDTO.ReservationItem> reservationItems = new ArrayList<>();
+        for (OrderItem item : items) {
+            StockReservationCreateDTO.ReservationItem ri = new StockReservationCreateDTO.ReservationItem();
+            ri.setOrderItemId(item.getId());
+            ri.setProductId(item.getProductId());
+            ri.setProductName(item.getProductName());
+            ri.setQuantity(item.getQuantity());
+            reservationItems.add(ri);
+        }
+        reservationDTO.setItems(reservationItems);
+        stockReservationService.createReservations(reservationDTO);
+
         log.info("创建订单成功: orderId={}, itemCount={}, originalTotal={}, discountAmount={}, finalTotal={}",
                 order.getId(), items.size(), originalTotal, discountAmount, order.getTotalAmount());
         return order;
@@ -149,6 +172,16 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             if (status == 4 && existingOrder.getCouponId() != null) {
                 couponService.restoreCoupon(id);
                 log.info("订单已取消，恢复优惠券: orderId={}, userCouponId={}", id, existingOrder.getCouponId());
+            }
+
+            if (status == 4) {
+                stockReservationService.releaseReservations(id, "订单已取消");
+                log.info("订单已取消，释放库存预占: orderId={}", id);
+            }
+
+            if (status == 3) {
+                stockReservationService.deductStock(id);
+                log.info("订单已完成，正式扣减库存: orderId={}", id);
             }
         }
     }

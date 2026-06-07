@@ -59,6 +59,10 @@
             class="menu-badge"
           />
         </el-menu-item>
+        <el-menu-item index="/stock-reservations">
+          <el-icon><Box /></el-icon>
+          <span>库存预占管理</span>
+        </el-menu-item>
       </el-menu>
 
       <div class="aside-footer">
@@ -112,7 +116,7 @@
 import { useRouter } from 'vue-router'
 import { onMounted, onUnmounted, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location } from '@element-plus/icons-vue'
+import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location, Box } from '@element-plus/icons-vue'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notification'
 

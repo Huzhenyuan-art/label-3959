@@ -10,6 +10,7 @@ import ReviewView from '../views/ReviewView.vue'
 import CouponCenterView from '../views/CouponCenterView.vue'
 import MyCouponsView from '../views/MyCouponsView.vue'
 import AddressView from '../views/AddressView.vue'
+import StockReservationView from '../views/StockReservationView.vue'
 import LoginView from '../views/LoginView.vue'
 import { useAuthStore } from '../store/auth'
 
@@ -25,7 +26,8 @@ const routes = [
   { path: '/notifications', component: NotificationView, meta: { title: '消息中心', requiresAuth: true } },
   { path: '/coupons', component: CouponCenterView, meta: { title: '优惠券中心', requiresAuth: true } },
   { path: '/my-coupons', component: MyCouponsView, meta: { title: '我的优惠券', requiresAuth: true } },
-  { path: '/addresses', component: AddressView, meta: { title: '收货地址', requiresAuth: true } }
+  { path: '/addresses', component: AddressView, meta: { title: '收货地址', requiresAuth: true } },
+  { path: '/stock-reservations', component: StockReservationView, meta: { title: '库存预占管理', requiresAuth: true } }
 ]
 
 const router = createRouter({

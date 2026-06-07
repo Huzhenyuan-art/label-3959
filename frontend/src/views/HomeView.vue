@@ -89,7 +89,7 @@ const features = [
   { title: '自动填充', desc: '@TableField fill 自动填充时间戳', icon: 'Timer', bg: 'rgba(144,147,153,0.1)', color: '#909399' },
   { title: '乐观锁', desc: '@Version 防并发冲突', icon: 'Lock', bg: 'rgba(64,158,255,0.1)', color: '#409EFF' },
   { title: '多表联查', desc: 'XML Mapper 一对多 resultMap', icon: 'Connection', bg: 'rgba(103,194,58,0.1)', color: '#67C23A' },
-  { title: '批量操作', desc: 'saveBatch 高效批量插入', icon: 'CopyDocument', bg: 'rgba(230,162,60,0.1)', color: '#E6A23C' }
+  { title: '库存预占', desc: '下单预占/取消释放/收货扣减', icon: 'ShoppingCart', bg: 'rgba(135,78,255,0.1)', color: '#874eff' }
 ]
 
 const featureList = [

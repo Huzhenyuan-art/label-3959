@@ -58,15 +58,27 @@
                 <span class="price">¥{{ Number(row.price).toFixed(2) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="stock" label="库存" width="80" align="center">
+            <el-table-column prop="stock" label="总库存" width="80" align="center">
               <template #default="{ row }">
                 <el-tag :type="row.stock < 50 ? 'warning' : 'success'" size="small">{{ row.stock }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="可用库存" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="getAvailableStock(row) < 10 ? 'danger' : getAvailableStock(row) < 50 ? 'warning' : 'success'" size="small">
+                  {{ getAvailableStock(row) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="reservedStock" label="预占库存" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag type="info" size="small">{{ row.reservedStock || 0 }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
             <el-table-column label="操作" width="320" fixed="right">
               <template #default="{ row }">
-                <el-button link type="success" size="small" :icon="ShoppingCart" @click="openAddToCart(row)" :disabled="row.stock <= 0">
+                <el-button link type="success" size="small" :icon="ShoppingCart" @click="openAddToCart(row)" :disabled="getAvailableStock(row) <= 0">
                   加入购物车
                 </el-button>
                 <el-button link type="warning" size="small" :icon="ChatDotRound" @click="openViewReviews(row)">
@@ -97,16 +109,26 @@
         <el-form-item label="商品名称">
           <span class="form-text">{{ cartForm.productName }}</span>
         </el-form-item>
-        <el-form-item label="库存">
+        <el-form-item label="总库存">
           <el-tag :type="cartForm.productStock < 50 ? 'warning' : 'success'" size="small">
             {{ cartForm.productStock }} 件
+          </el-tag>
+        </el-form-item>
+        <el-form-item label="可用库存">
+          <el-tag :type="cartForm.availableStock < 10 ? 'danger' : cartForm.availableStock < 50 ? 'warning' : 'success'" size="small">
+            {{ cartForm.availableStock }} 件
+          </el-tag>
+        </el-form-item>
+        <el-form-item label="预占库存">
+          <el-tag type="info" size="small">
+            {{ cartForm.reservedStock }} 件
           </el-tag>
         </el-form-item>
         <el-form-item label="购买数量" prop="quantity" :rules="[{ required: true, message: '请输入数量' }]">
           <el-input-number
             v-model="cartForm.quantity"
             :min="1"
-            :max="cartForm.productStock"
+            :max="cartForm.availableStock"
             style="width: 100%"
           />
         </el-form-item>
@@ -223,7 +245,13 @@ const cartFormRef = ref()
 
 const query = reactive({ current: 1, size: 10, name: '', category: '' })
 const form = reactive({ id: null, name: '', category: '', price: 0, stock: 0, description: '' })
-const cartForm = reactive({ productId: null, productName: '', productStock: 0, quantity: 1 })
+const cartForm = reactive({ productId: null, productName: '', productStock: 0, reservedStock: 0, availableStock: 0, quantity: 1 })
+
+const getAvailableStock = (row) => {
+  const total = row.stock || 0
+  const reserved = row.reservedStock || 0
+  return Math.max(0, total - reserved)
+}
 
 const reviewDialogVisible = ref(false)
 const reviewLoading = ref(false)
@@ -334,6 +362,8 @@ const openAddToCart = (row) => {
   cartForm.productId = row.id
   cartForm.productName = row.name
   cartForm.productStock = row.stock
+  cartForm.reservedStock = row.reservedStock || 0
+  cartForm.availableStock = getAvailableStock(row)
   cartForm.quantity = 1
   cartDialogVisible.value = true
 }

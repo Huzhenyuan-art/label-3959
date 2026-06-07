@@ -3,31 +3,30 @@ package com.example.demo.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * 商品实体
- * 演示特性：分页查询、条件构造器
- */
 @Data
-@TableName("product")
-public class Product {
+@TableName("stock_reservation")
+public class StockReservation {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String name;
+    private Long orderId;
 
-    private BigDecimal price;
+    private Long orderItemId;
 
-    private Integer stock;
+    private Long productId;
 
-    private Integer reservedStock;
+    private String productName;
 
-    private String category;
+    private Integer quantity;
 
-    private String description;
+    private Integer status;
+
+    private LocalDateTime expireTime;
+
+    private String releaseReason;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdTime;
