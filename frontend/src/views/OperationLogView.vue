@@ -274,14 +274,6 @@ const loadCategories = async () => {
   categories.value = res.data
 }
 
-onMounted(() => {
-  loadTypes()
-  loadCategories()
-  loadData()
-})
-</script>
-
-<script setup>
 const JsonDiffViewer = {
   name: 'JsonDiffViewer',
   props: {
@@ -366,6 +358,12 @@ const JsonDiffViewer = {
     </div>
   `
 }
+
+onMounted(() => {
+  loadTypes()
+  loadCategories()
+  loadData()
+})
 </script>
 
 <style scoped>
