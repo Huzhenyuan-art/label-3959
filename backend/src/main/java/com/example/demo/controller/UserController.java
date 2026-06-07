@@ -25,15 +25,19 @@ public class UserController {
     public Result<IPage<User>> page(@RequestParam(defaultValue = "1") int current,
                                     @RequestParam(defaultValue = "10") int size,
                                     @RequestParam(required = false) String username,
-                                    @RequestParam(required = false) Integer status) {
-        return Result.ok(userService.pageUsers(current, size, username, status));
+                                    @RequestParam(required = false) Integer status,
+                                    @RequestParam(required = false) Integer minAge,
+                                    @RequestParam(required = false) Integer maxAge) {
+        return Result.ok(userService.pageUsers(current, size, username, status, minAge, maxAge));
     }
 
     /** 条件列表查询 */
     @GetMapping
     public Result<List<User>> list(@RequestParam(required = false) String username,
-                                   @RequestParam(required = false) Integer status) {
-        return Result.ok(userService.listUsers(username, status));
+                                   @RequestParam(required = false) Integer status,
+                                   @RequestParam(required = false) Integer minAge,
+                                   @RequestParam(required = false) Integer maxAge) {
+        return Result.ok(userService.listUsers(username, status, minAge, maxAge));
     }
 
     /** 根据 ID 查询 */

@@ -8,11 +8,11 @@ import java.util.List;
 
 public interface UserService extends IService<User> {
 
-    /** 分页查询（可按用户名/状态过滤） */
-    IPage<User> pageUsers(int current, int size, String username, Integer status);
+    /** 分页查询（可按用户名/状态/年龄区间过滤） */
+    IPage<User> pageUsers(int current, int size, String username, Integer status, Integer minAge, Integer maxAge);
 
     /** 条件查询列表 */
-    List<User> listUsers(String username, Integer status);
+    List<User> listUsers(String username, Integer status, Integer minAge, Integer maxAge);
 
     /** 创建用户 */
     User createUser(User user);

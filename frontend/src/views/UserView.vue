@@ -22,6 +22,9 @@
             <el-option label="启用" :value="1" />
             <el-option label="禁用" :value="0" />
           </el-select>
+          <el-input-number v-model="query.minAge" placeholder="最小年龄" :min="1" :max="120" clearable style="width:120px" />
+          <span style="color:#909399">-</span>
+          <el-input-number v-model="query.maxAge" placeholder="最大年龄" :min="1" :max="120" clearable style="width:120px" />
           <el-button type="primary" @click="loadData" :icon="Search">搜索</el-button>
           <el-button @click="resetQuery">重置</el-button>
         </div>
@@ -135,13 +138,18 @@ const batchDialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
 
-const query = reactive({ current: 1, size: 10, username: '', status: null })
+const query = reactive({ current: 1, size: 10, username: '', status: null, minAge: null, maxAge: null })
 const form = reactive({ id: null, username: '', email: '', age: 18, status: 1, version: null })
 
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getUserPage({ ...query, status: query.status ?? undefined })
+    const res = await getUserPage({ 
+      ...query, 
+      status: query.status ?? undefined,
+      minAge: query.minAge ?? undefined,
+      maxAge: query.maxAge ?? undefined
+    })
     tableData.value = res.data.records
     total.value = res.data.total
   } finally {
@@ -152,6 +160,8 @@ const loadData = async () => {
 const resetQuery = () => {
   query.username = ''
   query.status = null
+  query.minAge = null
+  query.maxAge = null
   query.current = 1
   loadData()
 }

@@ -24,21 +24,25 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    public IPage<User> pageUsers(int current, int size, String username, Integer status) {
+    public IPage<User> pageUsers(int current, int size, String username, Integer status, Integer minAge, Integer maxAge) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()
                 .like(StringUtils.hasText(username), User::getUsername, username)
                 .eq(status != null, User::getStatus, status)
+                .ge(minAge != null, User::getAge, minAge)
+                .le(maxAge != null, User::getAge, maxAge)
                 .orderByDesc(User::getCreatedTime);
 
-        log.info("分页查询用户: current={}, size={}, username={}, status={}", current, size, username, status);
+        log.info("分页查询用户: current={}, size={}, username={}, status={}, minAge={}, maxAge={}", current, size, username, status, minAge, maxAge);
         return page(new Page<>(current, size), wrapper);
     }
 
     @Override
-    public List<User> listUsers(String username, Integer status) {
+    public List<User> listUsers(String username, Integer status, Integer minAge, Integer maxAge) {
         return lambdaQuery()
                 .like(StringUtils.hasText(username), User::getUsername, username)
                 .eq(status != null, User::getStatus, status)
+                .ge(minAge != null, User::getAge, minAge)
+                .le(maxAge != null, User::getAge, maxAge)
                 .orderByAsc(User::getId)
                 .list();
     }
