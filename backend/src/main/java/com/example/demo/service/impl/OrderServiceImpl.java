@@ -7,8 +7,10 @@ import com.example.demo.dto.CouponUseResultDTO;
 import com.example.demo.dto.OrderDetailDTO;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderItem;
+import com.example.demo.entity.UserAddress;
 import com.example.demo.mapper.OrderItemMapper;
 import com.example.demo.mapper.OrderMapper;
+import com.example.demo.mapper.UserAddressMapper;
 import com.example.demo.service.CouponService;
 import com.example.demo.service.NotificationService;
 import com.example.demo.service.OrderService;
@@ -30,6 +32,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private final OrderItemMapper orderItemMapper;
     private final NotificationService notificationService;
     private final CouponService couponService;
+    private final UserAddressMapper userAddressMapper;
 
     @Override
     public IPage<OrderDetailDTO> pageOrders(int current, int size, String username, Integer status) {
@@ -52,7 +55,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Order createOrder(Order order, List<OrderItem> items, Long userCouponId) {
+    public Order createOrder(Order order, List<OrderItem> items, Long userCouponId, Long addressId) {
         BigDecimal originalTotal = items.stream()
                 .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -68,11 +71,39 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             order.setDiscountAmount(BigDecimal.ZERO);
         }
 
+        Long userId = SecurityUtil.getCurrentUserId();
+        UserAddress address = null;
+        if (addressId != null) {
+            address = userAddressMapper.selectById(addressId);
+            if (address == null) {
+                throw new IllegalArgumentException("收货地址不存在");
+            }
+            if (!address.getUserId().equals(userId)) {
+                throw new SecurityException("无权使用该地址");
+            }
+        } else {
+            address = userAddressMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserAddress>()
+                    .eq(UserAddress::getUserId, userId)
+                    .eq(UserAddress::getIsDefault, 1)
+            );
+        }
+
+        if (address != null) {
+            order.setAddressId(address.getId());
+            order.setReceiverName(address.getReceiverName());
+            order.setReceiverPhone(address.getReceiverPhone());
+            String fullAddress = buildFullAddress(address);
+            order.setReceiverAddress(fullAddress);
+        } else {
+            throw new IllegalArgumentException("请先添加收货地址");
+        }
+
         order.setTotalAmount(originalTotal.subtract(discountAmount).max(BigDecimal.ZERO));
         order.setStatus(0);
         order.setVersion(1);
         if (!SecurityUtil.isAdmin()) {
-            order.setUserId(SecurityUtil.getCurrentUserId());
+            order.setUserId(userId);
         }
         save(order);
 
@@ -133,5 +164,20 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
         notificationService.sendRefundResultNotification(existingOrder.getUserId(), id, success, reason);
         log.info("处理订单退款: id={}, success={}, reason={}", id, success, reason);
+    }
+
+    private String buildFullAddress(UserAddress address) {
+        StringBuilder sb = new StringBuilder();
+        if (address.getProvince() != null && !address.getProvince().isEmpty()) {
+            sb.append(address.getProvince());
+        }
+        if (address.getCity() != null && !address.getCity().isEmpty()) {
+            sb.append(address.getCity());
+        }
+        if (address.getDistrict() != null && !address.getDistrict().isEmpty()) {
+            sb.append(address.getDistrict());
+        }
+        sb.append(address.getDetailAddress());
+        return sb.toString();
     }
 }

@@ -128,6 +128,44 @@
           </el-descriptions-item>
         </el-descriptions>
 
+        <div class="address-section">
+          <div class="address-section-title">
+            <span>选择收货地址</span>
+            <el-button type="primary" link size="small" @click="goToAddressManage">
+              管理地址
+            </el-button>
+          </div>
+          <div v-if="loadingAddresses" class="loading-text">加载中...</div>
+          <div v-else-if="addressList.length === 0" class="no-address">
+            <el-empty description="暂无收货地址，请先添加收货地址" :image-size="80">
+              <el-button type="primary" @click="goToAddressManage">去添加</el-button>
+            </el-empty>
+          </div>
+          <div v-else class="address-list">
+            <div
+              v-for="address in addressList"
+              :key="address.id"
+              class="address-item"
+              :class="{ 'address-selected': selectedAddressId === address.id }"
+              @click="selectedAddressId = address.id"
+            >
+              <div class="address-item-left">
+                <div class="address-receiver">
+                  <span class="receiver-name">{{ address.receiverName }}</span>
+                  <span class="receiver-phone">{{ address.receiverPhone }}</span>
+                  <el-tag v-if="address.isDefault === 1" type="danger" size="small" class="default-tag">
+                    默认
+                  </el-tag>
+                </div>
+                <div class="address-detail">{{ buildFullAddress(address) }}</div>
+              </div>
+              <div v-if="selectedAddressId === address.id" class="address-check">
+                <el-icon color="#67c23a" size="20"><CircleCheck /></el-icon>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="coupon-section">
           <div class="coupon-section-title">
             <span>选择优惠券</span>
@@ -215,6 +253,7 @@ import {
   checkoutCart,
   getAvailableCouponsForOrder
 } from '../api/cart'
+import { getMyAddresses, getDefaultAddress } from '../api/address'
 
 const router = useRouter()
 const loading = ref(false)
@@ -226,6 +265,9 @@ const checkoutRemark = ref('')
 const availableCoupons = ref([])
 const selectedCouponId = ref(null)
 const loadingCoupons = ref(false)
+const addressList = ref([])
+const selectedAddressId = ref(null)
+const loadingAddresses = ref(false)
 
 const isAllSelected = computed({
   get: () => cartList.value.length > 0 && selectedIds.value.length === cartList.value.length,
@@ -262,6 +304,20 @@ const discountAmount = computed(() => {
 const finalAmount = computed(() => {
   return Math.max(0, selectedTotal.value - discountAmount.value)
 })
+
+const selectedAddress = computed(() => {
+  return addressList.value.find(a => a.id === selectedAddressId.value)
+})
+
+const buildFullAddress = (address) => {
+  if (!address) return ''
+  let full = ''
+  if (address.province) full += address.province
+  if (address.city) full += address.city
+  if (address.district) full += address.district
+  full += address.detailAddress
+  return full
+}
 
 const loadData = async () => {
   loading.value = true
@@ -335,25 +391,48 @@ const handleCheckout = async () => {
   checkoutRemark.value = ''
   selectedCouponId.value = null
   availableCoupons.value = []
-  
+  addressList.value = []
+  selectedAddressId.value = null
+
   loadingCoupons.value = true
+  loadingAddresses.value = true
   try {
-    const res = await getAvailableCouponsForOrder(selectedTotal.value)
-    availableCoupons.value = res.data
+    const [couponRes, addressRes] = await Promise.all([
+      getAvailableCouponsForOrder(selectedTotal.value),
+      getMyAddresses()
+    ])
+    availableCoupons.value = couponRes.data
+    addressList.value = addressRes.data
+
+    if (addressList.value.length > 0) {
+      const defaultAddr = addressList.value.find(a => a.isDefault === 1)
+      selectedAddressId.value = defaultAddr ? defaultAddr.id : addressList.value[0].id
+    }
   } finally {
     loadingCoupons.value = false
+    loadingAddresses.value = false
   }
-  
+
   checkoutDialogVisible.value = true
 }
 
+const goToAddressManage = () => {
+  checkoutDialogVisible.value = false
+  router.push('/addresses')
+}
+
 const confirmCheckout = async () => {
+  if (!selectedAddressId.value) {
+    ElMessage.warning('请选择收货地址')
+    return
+  }
   checkoutLoading.value = true
   try {
     const res = await checkoutCart({
       cartIds: selectedIds.value,
       remark: checkoutRemark.value,
-      userCouponId: selectedCouponId.value
+      userCouponId: selectedCouponId.value,
+      addressId: selectedAddressId.value
     })
     ElMessage.success('订单创建成功！')
     checkoutDialogVisible.value = false
@@ -591,6 +670,85 @@ onMounted(loadData)
   color: #909399;
 }
 .coupon-check {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.address-section {
+  margin-top: 16px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+.address-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #303133;
+}
+.loading-text {
+  font-size: 12px;
+  color: #909399;
+  font-weight: normal;
+}
+.no-address {
+  padding: 20px;
+}
+.address-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.address-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.address-item:hover {
+  border-color: #409eff;
+}
+.address-item.address-selected {
+  border-color: #67c23a;
+  background: #f0f9eb;
+}
+.address-item-left {
+  flex: 1;
+  padding-right: 30px;
+}
+.address-receiver {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.address-receiver .receiver-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+.address-receiver .receiver-phone {
+  font-size: 14px;
+  color: #606266;
+}
+.address-receiver .default-tag {
+  margin-left: 8px;
+}
+.address-detail {
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.5;
+}
+.address-check {
   position: absolute;
   right: 12px;
   top: 50%;

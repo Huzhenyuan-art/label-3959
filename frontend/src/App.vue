@@ -90,7 +90,7 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="profile">个人信息</el-dropdown-item>
+                <el-dropdown-item command="addresses">收货地址</el-dropdown-item>
                 <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -108,7 +108,7 @@
 import { useRouter } from 'vue-router'
 import { onMounted, onUnmounted, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Bell, ShoppingCart, ChatDotRound, Present, Wallet } from '@element-plus/icons-vue'
+import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location } from '@element-plus/icons-vue'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notification'
 
@@ -168,8 +168,8 @@ const handleCommand = async (command) => {
       router.push('/login')
     } catch {
     }
-  } else if (command === 'profile') {
-    ElMessage.info('个人信息功能开发中')
+  } else if (command === 'addresses') {
+    router.push('/addresses')
   }
 }
 </script>

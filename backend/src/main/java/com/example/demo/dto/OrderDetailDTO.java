@@ -22,6 +22,10 @@ public class OrderDetailDTO {
     private Long couponId;
     private BigDecimal discountAmount;
     private String couponName;
+    private Long addressId;
+    private String receiverName;
+    private String receiverPhone;
+    private String receiverAddress;
     private Integer version;
     private LocalDateTime createdTime;
     private LocalDateTime updatedTime;

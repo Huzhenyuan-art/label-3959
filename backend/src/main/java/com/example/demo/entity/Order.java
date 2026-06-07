@@ -30,6 +30,14 @@ public class Order {
 
     private BigDecimal discountAmount;
 
+    private Long addressId;
+
+    private String receiverName;
+
+    private String receiverPhone;
+
+    private String receiverAddress;
+
     /** 乐观锁版本号 */
     @Version
     private Integer version;

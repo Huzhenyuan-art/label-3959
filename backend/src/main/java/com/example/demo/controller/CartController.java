@@ -51,7 +51,7 @@ public class CartController {
 
     @PostMapping("/checkout")
     public Result<Order> checkout(@RequestBody CheckoutRequest req) {
-        return Result.ok(cartService.checkout(req.getCartIds(), req.getRemark(), req.getUserCouponId()));
+        return Result.ok(cartService.checkout(req.getCartIds(), req.getRemark(), req.getUserCouponId(), req.getAddressId()));
     }
 
     @Data
@@ -75,5 +75,6 @@ public class CartController {
         private List<Long> cartIds;
         private String remark;
         private Long userCouponId;
+        private Long addressId;
     }
 }

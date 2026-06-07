@@ -65,6 +65,26 @@
         </el-col>
       </el-row>
 
+      <!-- 收货地址信息 -->
+      <el-card shadow="never" class="info-card">
+        <template #header>
+          <span class="card-title">收货地址</span>
+          <el-tag type="success" size="small">下单时快照</el-tag>
+        </template>
+        <el-descriptions :column="3" border size="small">
+          <el-descriptions-item label="收件人">
+            <span class="highlight">{{ order.receiverName || '-' }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="手机号">{{ order.receiverPhone || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="地址">{{ order.receiverAddress || '-' }}</el-descriptions-item>
+        </el-descriptions>
+        <el-alert v-if="order.receiverName" type="info" :closable="false" style="margin-top:12px" size="small">
+          <template #title>
+            地址信息为下单时的快照，即使后续修改地址，订单地址也不会变化
+          </template>
+        </el-alert>
+      </el-card>
+
       <!-- 订单明细（一对多） -->
       <el-card shadow="never" class="items-card">
         <template #header>

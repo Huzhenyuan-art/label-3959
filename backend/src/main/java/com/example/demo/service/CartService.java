@@ -19,5 +19,5 @@ public interface CartService extends IService<Cart> {
 
     void batchRemove(List<Long> ids);
 
-    Order checkout(List<Long> cartIds, String remark, Long userCouponId);
+    Order checkout(List<Long> cartIds, String remark, Long userCouponId, Long addressId);
 }

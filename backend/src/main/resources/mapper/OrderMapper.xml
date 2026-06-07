@@ -16,6 +16,10 @@
         <result property="couponId" column="coupon_id"/>
         <result property="discountAmount" column="discount_amount"/>
         <result property="couponName" column="coupon_name"/>
+        <result property="addressId" column="address_id"/>
+        <result property="receiverName" column="receiver_name"/>
+        <result property="receiverPhone" column="receiver_phone"/>
+        <result property="receiverAddress" column="receiver_address"/>
         <result property="version" column="version"/>
         <result property="createdTime" column="created_time"/>
         <result property="updatedTime" column="updated_time"/>
@@ -34,6 +38,10 @@
         <result property="couponId" column="coupon_id"/>
         <result property="discountAmount" column="discount_amount"/>
         <result property="couponName" column="coupon_name"/>
+        <result property="addressId" column="address_id"/>
+        <result property="receiverName" column="receiver_name"/>
+        <result property="receiverPhone" column="receiver_phone"/>
+        <result property="receiverAddress" column="receiver_address"/>
         <result property="version" column="version"/>
         <result property="createdTime" column="created_time"/>
         <result property="updatedTime" column="updated_time"/>
@@ -72,6 +80,10 @@
             o.coupon_id,
             o.discount_amount,
             ct.name      AS coupon_name,
+            o.address_id,
+            o.receiver_name,
+            o.receiver_phone,
+            o.receiver_address,
             o.version,
             o.created_time,
             o.updated_time
@@ -116,6 +128,10 @@
             o.coupon_id,
             o.discount_amount,
             ct.name         AS coupon_name,
+            o.address_id,
+            o.receiver_name,
+            o.receiver_phone,
+            o.receiver_address,
             o.version,
             o.created_time,
             o.updated_time,

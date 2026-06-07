@@ -14,7 +14,7 @@ public interface OrderService extends IService<Order> {
 
     OrderDetailDTO getOrderDetail(Long id);
 
-    Order createOrder(Order order, List<OrderItem> items, Long userCouponId);
+    Order createOrder(Order order, List<OrderItem> items, Long userCouponId, Long addressId);
 
     void updateOrderStatus(Long id, Integer status, Integer version);
 

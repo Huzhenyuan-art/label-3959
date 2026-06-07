@@ -143,3 +143,27 @@ CREATE TABLE IF NOT EXISTS `user_coupon` (
 ALTER TABLE `order` ADD COLUMN `coupon_id` BIGINT DEFAULT NULL AFTER `remark`;
 ALTER TABLE `order` ADD COLUMN `discount_amount` DECIMAL(10,2) DEFAULT 0 AFTER `coupon_id`;
 ALTER TABLE `order` ADD INDEX `idx_coupon_id` (`coupon_id`);
+
+CREATE TABLE IF NOT EXISTS `user_address` (
+  `id`           BIGINT        NOT NULL AUTO_INCREMENT,
+  `user_id`      BIGINT        NOT NULL,
+  `receiver_name`   VARCHAR(50)  NOT NULL,
+  `receiver_phone`  VARCHAR(20)  NOT NULL,
+  `province`     VARCHAR(50)   DEFAULT NULL,
+  `city`         VARCHAR(50)   DEFAULT NULL,
+  `district`     VARCHAR(50)   DEFAULT NULL,
+  `detail_address` VARCHAR(200) NOT NULL,
+  `is_default`   TINYINT       NOT NULL DEFAULT 0,
+  `deleted`      TINYINT       NOT NULL DEFAULT 0,
+  `created_time` DATETIME      DEFAULT NULL,
+  `updated_time` DATETIME      DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `idx_user_id` (`user_id`),
+  INDEX `idx_user_default` (`user_id`, `is_default`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `order` ADD COLUMN `address_id` BIGINT DEFAULT NULL AFTER `discount_amount`;
+ALTER TABLE `order` ADD COLUMN `receiver_name` VARCHAR(50) DEFAULT NULL AFTER `address_id`;
+ALTER TABLE `order` ADD COLUMN `receiver_phone` VARCHAR(20) DEFAULT NULL AFTER `receiver_name`;
+ALTER TABLE `order` ADD COLUMN `receiver_address` VARCHAR(300) DEFAULT NULL AFTER `receiver_phone`;
+ALTER TABLE `order` ADD INDEX `idx_address_id` (`address_id`);
