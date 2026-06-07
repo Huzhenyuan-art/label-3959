@@ -41,7 +41,7 @@ public class OrderController {
     /** 创建订单（事务 + 批量插入明细） */
     @PostMapping
     public Result<Order> create(@RequestBody CreateOrderRequest req) {
-        return Result.ok(orderService.createOrder(req.getOrder(), req.getItems()));
+        return Result.ok(orderService.createOrder(req.getOrder(), req.getItems(), req.getUserCouponId()));
     }
 
     /** 更新订单状态（演示乐观锁） */
@@ -64,6 +64,7 @@ public class OrderController {
     public static class CreateOrderRequest {
         private Order order;
         private List<OrderItem> items;
+        private Long userCouponId;
     }
 
     @Data

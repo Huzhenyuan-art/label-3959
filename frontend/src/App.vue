@@ -100,7 +100,7 @@
 import { useRouter } from 'vue-router'
 import { onMounted, onUnmounted, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Bell, ShoppingCart, ChatDotRound } from '@element-plus/icons-vue'
+import { Bell, ShoppingCart, ChatDotRound, Present, Wallet } from '@element-plus/icons-vue'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notification'
 

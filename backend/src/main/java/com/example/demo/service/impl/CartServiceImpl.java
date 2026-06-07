@@ -169,7 +169,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
         order.setStatus(0);
         order.setVersion(1);
 
-        Order createdOrder = orderService.createOrder(order, orderItems);
+        Order createdOrder = orderService.createOrder(order, orderItems, null);
 
         batchRemove(cartIds);
 

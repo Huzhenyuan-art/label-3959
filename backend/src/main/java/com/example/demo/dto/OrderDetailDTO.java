@@ -19,6 +19,9 @@ public class OrderDetailDTO {
     private Integer status;
     private String statusLabel;
     private String remark;
+    private Long couponId;
+    private BigDecimal discountAmount;
+    private String couponName;
     private Integer version;
     private LocalDateTime createdTime;
     private LocalDateTime updatedTime;

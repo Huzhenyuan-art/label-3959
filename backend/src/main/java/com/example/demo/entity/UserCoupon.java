@@ -6,33 +6,30 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * 订单实体
- * 演示特性：乐观锁更新状态、多表关联查询
- */
 @Data
-@TableName("`order`")
-public class Order {
+@TableName("user_coupon")
+public class UserCoupon {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
     private Long userId;
 
-    private BigDecimal totalAmount;
+    private Long templateId;
 
-    /** 订单状态: 0-待支付 1-已支付 2-已发货 3-已完成 4-已取消 */
+    private String couponCode;
+
     private Integer status;
 
-    private String remark;
+    private LocalDateTime usedTime;
 
-    private Long couponId;
+    private Long orderId;
 
     private BigDecimal discountAmount;
 
-    /** 乐观锁版本号 */
-    @Version
-    private Integer version;
+    private LocalDateTime validStartTime;
+
+    private LocalDateTime validEndTime;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdTime;

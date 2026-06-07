@@ -95,3 +95,51 @@ CREATE TABLE IF NOT EXISTS `product_review` (
   INDEX `idx_user_id` (`user_id`),
   INDEX `idx_created_time` (`created_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `coupon_template` (
+  `id`               BIGINT         NOT NULL AUTO_INCREMENT,
+  `name`             VARCHAR(100)   NOT NULL,
+  `type`             TINYINT        NOT NULL,
+  `discount_amount`  DECIMAL(10,2)  DEFAULT NULL,
+  `discount_rate`    DECIMAL(3,2)   DEFAULT NULL,
+  `min_amount`       DECIMAL(10,2)  NOT NULL DEFAULT 0,
+  `total_count`      INT            NOT NULL DEFAULT 0,
+  `received_count`   INT            NOT NULL DEFAULT 0,
+  `used_count`       INT            NOT NULL DEFAULT 0,
+  `per_user_limit`   INT            NOT NULL DEFAULT 1,
+  `valid_start_time` DATETIME       DEFAULT NULL,
+  `valid_end_time`   DATETIME       DEFAULT NULL,
+  `valid_days`       INT            DEFAULT NULL,
+  `status`           TINYINT        NOT NULL DEFAULT 1,
+  `description`      VARCHAR(500)   DEFAULT NULL,
+  `created_time`     DATETIME       DEFAULT NULL,
+  `updated_time`     DATETIME       DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `idx_status` (`status`),
+  INDEX `idx_valid_time` (`valid_start_time`, `valid_end_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `user_coupon` (
+  `id`               BIGINT         NOT NULL AUTO_INCREMENT,
+  `user_id`          BIGINT         NOT NULL,
+  `template_id`      BIGINT         NOT NULL,
+  `coupon_code`      VARCHAR(50)    DEFAULT NULL,
+  `status`           TINYINT        NOT NULL DEFAULT 0,
+  `used_time`        DATETIME       DEFAULT NULL,
+  `order_id`         BIGINT         DEFAULT NULL,
+  `discount_amount`  DECIMAL(10,2)  DEFAULT NULL,
+  `valid_start_time` DATETIME       NOT NULL,
+  `valid_end_time`   DATETIME       NOT NULL,
+  `created_time`     DATETIME       DEFAULT NULL,
+  `updated_time`     DATETIME       DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_coupon_code` (`coupon_code`),
+  INDEX `idx_user_id` (`user_id`),
+  INDEX `idx_template_id` (`template_id`),
+  INDEX `idx_user_status` (`user_id`, `status`),
+  INDEX `idx_valid_time` (`valid_start_time`, `valid_end_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `order` ADD COLUMN `coupon_id` BIGINT DEFAULT NULL AFTER `remark`;
+ALTER TABLE `order` ADD COLUMN `discount_amount` DECIMAL(10,2) DEFAULT 0 AFTER `coupon_id`;
+ALTER TABLE `order` ADD INDEX `idx_coupon_id` (`coupon_id`);

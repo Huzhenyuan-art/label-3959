@@ -3,11 +3,13 @@ package com.example.demo.service.impl;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.example.demo.dto.CouponUseResultDTO;
 import com.example.demo.dto.OrderDetailDTO;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderItem;
 import com.example.demo.mapper.OrderItemMapper;
 import com.example.demo.mapper.OrderMapper;
+import com.example.demo.service.CouponService;
 import com.example.demo.service.NotificationService;
 import com.example.demo.service.OrderService;
 import com.example.demo.util.SecurityUtil;
@@ -27,6 +29,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
     private final NotificationService notificationService;
+    private final CouponService couponService;
 
     @Override
     public IPage<OrderDetailDTO> pageOrders(int current, int size, String username, Integer status) {
@@ -49,17 +52,33 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Order createOrder(Order order, List<OrderItem> items) {
-        BigDecimal total = items.stream()
+    public Order createOrder(Order order, List<OrderItem> items, Long userCouponId) {
+        BigDecimal originalTotal = items.stream()
                 .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        order.setTotalAmount(total);
+
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        if (userCouponId != null) {
+            CouponUseResultDTO discountResult = couponService.calculateDiscount(userCouponId, originalTotal);
+            discountAmount = discountResult.getDiscountAmount();
+            order.setCouponId(userCouponId);
+            order.setDiscountAmount(discountAmount);
+        } else {
+            order.setCouponId(null);
+            order.setDiscountAmount(BigDecimal.ZERO);
+        }
+
+        order.setTotalAmount(originalTotal.subtract(discountAmount).max(BigDecimal.ZERO));
         order.setStatus(0);
         order.setVersion(1);
         if (!SecurityUtil.isAdmin()) {
             order.setUserId(SecurityUtil.getCurrentUserId());
         }
         save(order);
+
+        if (userCouponId != null) {
+            couponService.useCoupon(userCouponId, order.getId(), originalTotal);
+        }
 
         items.forEach(item -> item.setOrderId(order.getId()));
         orderItemMapper.insert(items.get(0));
@@ -68,7 +87,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 orderItemMapper.insert(items.get(i));
             }
         }
-        log.info("创建订单成功: orderId={}, itemCount={}, total={}", order.getId(), items.size(), total);
+        log.info("创建订单成功: orderId={}, itemCount={}, originalTotal={}, discountAmount={}, finalTotal={}",
+                order.getId(), items.size(), originalTotal, discountAmount, order.getTotalAmount());
         return order;
     }
 
@@ -94,6 +114,11 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         if (!oldStatus.equals(status)) {
             notificationService.sendOrderStatusNotification(existingOrder.getUserId(), id, oldStatus, status);
+
+            if (status == 4 && existingOrder.getCouponId() != null) {
+                couponService.restoreCoupon(id);
+                log.info("订单已取消，恢复优惠券: orderId={}, userCouponId={}", id, existingOrder.getCouponId());
+            }
         }
     }
 

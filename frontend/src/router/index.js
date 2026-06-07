@@ -7,6 +7,8 @@ import OrderView from '../views/OrderView.vue'
 import OrderDetailView from '../views/OrderDetailView.vue'
 import NotificationView from '../views/NotificationView.vue'
 import ReviewView from '../views/ReviewView.vue'
+import CouponCenterView from '../views/CouponCenterView.vue'
+import MyCouponsView from '../views/MyCouponsView.vue'
 import LoginView from '../views/LoginView.vue'
 import { useAuthStore } from '../store/auth'
 
@@ -19,7 +21,9 @@ const routes = [
   { path: '/orders', component: OrderView, meta: { title: '订单管理', requiresAuth: true } },
   { path: '/orders/:id', component: OrderDetailView, meta: { title: '订单详情', requiresAuth: true } },
   { path: '/reviews', component: ReviewView, meta: { title: '商品评价', requiresAuth: true } },
-  { path: '/notifications', component: NotificationView, meta: { title: '消息中心', requiresAuth: true } }
+  { path: '/notifications', component: NotificationView, meta: { title: '消息中心', requiresAuth: true } },
+  { path: '/coupons', component: CouponCenterView, meta: { title: '优惠券中心', requiresAuth: true } },
+  { path: '/my-coupons', component: MyCouponsView, meta: { title: '我的优惠券', requiresAuth: true } }
 ]
 
 const router = createRouter({
