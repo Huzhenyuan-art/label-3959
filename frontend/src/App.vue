@@ -45,6 +45,10 @@
           <el-icon><Wallet /></el-icon>
           <span>我的优惠券</span>
         </el-menu-item>
+        <el-menu-item index="/addresses">
+          <el-icon><Location /></el-icon>
+          <span>收货地址</span>
+        </el-menu-item>
         <el-menu-item index="/notifications">
           <el-icon><Bell /></el-icon>
           <span>消息中心</span>

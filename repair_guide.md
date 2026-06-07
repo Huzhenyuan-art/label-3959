@@ -748,6 +748,83 @@ const formatDate = (date) => {
 
 ---
 
+### 修复 #10：左侧菜单栏没有收货地址管理入口
+
+**问题描述**：收货地址模块的前后端功能、路由配置、页面组件均已完成实现，但用户登录后在左侧菜单栏中找不到「收货地址」菜单项，无法通过侧边栏进入地址管理页面。虽然用户头像下拉菜单中有「收货地址」入口，但侧边栏缺失会影响功能发现性和使用便捷性。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+- 前端 `App.vue` 的左侧菜单栏（第 16-58 行）中缺少「收货地址」对应的 `el-menu-item`
+- 虽然第 111 行已导入 `Location` 图标，第 93 行的下拉菜单也有「收货地址」入口，但侧边栏菜单区域未添加对应菜单项
+- 路由配置 `/addresses` 已正确添加，地址页面 `AddressView.vue` 也已创建
+- 后端 API 接口、权限控制、用户权限隔离均已正确实现
+
+**影响范围**：收货地址模块 - 功能入口（用户难以发现和访问地址管理功能）
+
+**修复方案**：
+
+#### 1. 前端修复
+**文件**：[frontend/src/App.vue](frontend/src/App.vue#L48-L51)
+
+**修复内容**：
+在「我的优惠券」菜单项之后、「消息中心」菜单项之前添加「收货地址」菜单项：
+
+```vue
+<el-menu-item index="/my-coupons">
+  <el-icon><Wallet /></el-icon>
+  <span>我的优惠券</span>
+</el-menu-item>
+<el-menu-item index="/addresses">
+  <el-icon><Location /></el-icon>
+  <span>收货地址</span>
+</el-menu-item>
+<el-menu-item index="/notifications">
+  <el-icon><Bell /></el-icon>
+  <span>消息中心</span>
+</el-menu-item>
+```
+
+**关键点**：
+- 菜单项顺序：我的优惠券 → 收货地址 → 消息中心
+- 「收货地址」路由为 `/addresses`，与路由配置一致
+- 图标使用已导入的 `Location`（位置图标），语义明确
+- 菜单项对所有登录用户可见（`/api/addresses/**` 在 SecurityConfig 中已配置为需要登录认证即可访问）
+- 与用户头像下拉菜单中的「收货地址」入口保持功能一致
+
+#### 2. 其他确认（无需修改）
+
+**路由配置确认**：[frontend/src/router/index.js](frontend/src/router/index.js#L28-L28)
+```javascript
+{ path: '/addresses', component: AddressView, meta: { title: '收货地址', requiresAuth: true } }
+```
+- 路由已正确配置 ✅
+
+**后端权限配置确认**：[backend/src/main/java/com/example/demo/config/SecurityConfig.java](backend/src/main/java/com/example/demo/config/SecurityConfig.java)
+- `/api/addresses/**` 路径已被 `anyRequest().authenticated()` 覆盖，需要登录认证 ✅
+- 后端 Service 层通过 `SecurityUtil.getCurrentUserId()` 确保用户只能操作自己的地址 ✅
+
+**页面组件确认**：[frontend/src/views/AddressView.vue](frontend/src/views/AddressView.vue)
+- 地址管理页面已完整实现，包含地址列表、新增/编辑、设置默认、删除等功能 ✅
+
+**下拉菜单入口确认**：[frontend/src/App.vue](frontend/src/App.vue#L93-L93)
+- 用户头像下拉菜单中的「收货地址」入口已正确配置，点击可跳转至 `/addresses` ✅
+
+**修复验证**：
+1. 启动前端和后端服务
+2. 使用普通用户账号登录系统
+3. 确认左侧边栏菜单中显示「收货地址」菜单项（位于「我的优惠券」和「消息中心」之间）
+4. 确认菜单项图标正确显示（位置图标）
+5. 点击「收货地址」菜单项，确认路由正确跳转至 `/addresses`，页面标题显示为「收货地址」
+6. 确认地址管理页面正常加载，显示用户的地址列表（如果有）或空状态
+7. 测试地址的新增、编辑、设置默认、删除功能，确认全部正常
+8. 点击用户头像，在下拉菜单中点击「收货地址」，确认同样可以正确跳转
+9. 使用管理员账号登录系统，重复步骤 3-7，确认管理员也可以正常访问和管理自己的地址
+10. 测试用户权限隔离：使用用户 A 创建一个地址，然后使用用户 B 登录，确认无法看到或操作用户 A 的地址
+11. 确认其他菜单项的顺序和功能不受影响
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题
