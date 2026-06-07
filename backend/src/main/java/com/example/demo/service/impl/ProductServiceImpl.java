@@ -14,7 +14,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 商品 Service 实现
@@ -31,11 +35,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     private final NotificationService notificationService;
 
     @Override
-    public IPage<Product> pageProducts(int current, int size, String name, String category) {
-        // 演示：QueryWrapper 多条件分页
+    public IPage<Product> pageProducts(int current, int size, String name, String category,
+                                       BigDecimal minPrice, BigDecimal maxPrice,
+                                       Integer minStock, Integer maxStock) {
+        // 演示：QueryWrapper 多条件分页（含价格区间、库存区间过滤）
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
                 .like(StringUtils.hasText(name), Product::getName, name)
                 .eq(StringUtils.hasText(category), Product::getCategory, category)
+                .ge(minPrice != null, Product::getPrice, minPrice)
+                .le(maxPrice != null, Product::getPrice, maxPrice)
+                .ge(minStock != null, Product::getStock, minStock)
+                .le(maxStock != null, Product::getStock, maxStock)
                 .orderByDesc(Product::getCreatedTime);
 
         return page(new Page<>(current, size), wrapper);
@@ -79,8 +89,41 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     }
 
     @Override
-    public List<CategoryStatsDTO> getCategoryStats() {
-        // 演示：自定义注解 SQL 分组统计
-        return productMapper.selectCategoryStats();
+    public List<CategoryStatsDTO> getCategoryStats(String name, String category,
+                                                   BigDecimal minPrice, BigDecimal maxPrice,
+                                                   Integer minStock, Integer maxStock) {
+        // 先按过滤条件查询商品，再在内存中分组统计（保持与分页查询一致的过滤逻辑）
+        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
+                .like(StringUtils.hasText(name), Product::getName, name)
+                .eq(StringUtils.hasText(category), Product::getCategory, category)
+                .ge(minPrice != null, Product::getPrice, minPrice)
+                .le(maxPrice != null, Product::getPrice, maxPrice)
+                .ge(minStock != null, Product::getStock, minStock)
+                .le(maxStock != null, Product::getStock, maxStock);
+
+        List<Product> products = list(wrapper);
+
+        Map<String, List<Product>> grouped = products.stream()
+                .collect(Collectors.groupingBy(Product::getCategory));
+
+        return grouped.entrySet().stream()
+                .map(entry -> {
+                    CategoryStatsDTO dto = new CategoryStatsDTO();
+                    dto.setCategory(entry.getKey());
+                    dto.setCount((long) entry.getValue().size());
+                    BigDecimal totalStock = entry.getValue().stream()
+                            .map(p -> BigDecimal.valueOf(p.getStock() != null ? p.getStock() : 0))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    dto.setTotalStock(totalStock);
+                    BigDecimal avgPrice = entry.getValue().stream()
+                            .map(Product::getPrice)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(entry.getValue().size()), 2, java.math.RoundingMode.HALF_UP);
+                    dto.setAvgPrice(avgPrice);
+                    return dto;
+                })
+                .sorted((a, b) -> Long.compare(b.getCount(), a.getCount()))
+                .collect(Collectors.toList());
     }
 }

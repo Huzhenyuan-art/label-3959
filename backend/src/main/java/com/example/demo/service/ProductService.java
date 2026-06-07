@@ -5,11 +5,12 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.demo.dto.CategoryStatsDTO;
 import com.example.demo.entity.Product;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface ProductService extends IService<Product> {
 
-    IPage<Product> pageProducts(int current, int size, String name, String category);
+    IPage<Product> pageProducts(int current, int size, String name, String category, BigDecimal minPrice, BigDecimal maxPrice, Integer minStock, Integer maxStock);
 
     Product createProduct(Product product);
 
@@ -17,5 +18,5 @@ public interface ProductService extends IService<Product> {
 
     void deleteProduct(Long id);
 
-    List<CategoryStatsDTO> getCategoryStats();
+    List<CategoryStatsDTO> getCategoryStats(String name, String category, BigDecimal minPrice, BigDecimal maxPrice, Integer minStock, Integer maxStock);
 }

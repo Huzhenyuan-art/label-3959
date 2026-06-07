@@ -10,6 +10,7 @@ import com.example.demo.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -28,8 +29,12 @@ public class ProductController {
     public Result<IPage<Product>> page(@RequestParam(defaultValue = "1") int current,
                                        @RequestParam(defaultValue = "10") int size,
                                        @RequestParam(required = false) String name,
-                                       @RequestParam(required = false) String category) {
-        return Result.ok(productService.pageProducts(current, size, name, category));
+                                       @RequestParam(required = false) String category,
+                                       @RequestParam(required = false) BigDecimal minPrice,
+                                       @RequestParam(required = false) BigDecimal maxPrice,
+                                       @RequestParam(required = false) Integer minStock,
+                                       @RequestParam(required = false) Integer maxStock) {
+        return Result.ok(productService.pageProducts(current, size, name, category, minPrice, maxPrice, minStock, maxStock));
     }
 
     /** 全量列表（无分页） */
@@ -40,8 +45,13 @@ public class ProductController {
 
     /** 分类统计（演示自定义 @Select 注解 SQL） */
     @GetMapping("/stats")
-    public Result<List<CategoryStatsDTO>> stats() {
-        return Result.ok(productService.getCategoryStats());
+    public Result<List<CategoryStatsDTO>> stats(@RequestParam(required = false) String name,
+                                                @RequestParam(required = false) String category,
+                                                @RequestParam(required = false) BigDecimal minPrice,
+                                                @RequestParam(required = false) BigDecimal maxPrice,
+                                                @RequestParam(required = false) Integer minStock,
+                                                @RequestParam(required = false) Integer maxStock) {
+        return Result.ok(productService.getCategoryStats(name, category, minPrice, maxPrice, minStock, maxStock));
     }
 
     @GetMapping("/{id}")

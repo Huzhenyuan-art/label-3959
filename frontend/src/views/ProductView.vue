@@ -36,9 +36,21 @@
           <div class="toolbar">
             <div class="search-area">
               <el-input v-model="query.name" placeholder="商品名称" clearable style="width:180px" @keyup.enter="loadData" />
-              <el-select v-model="query.category" placeholder="分类" clearable style="width:120px">
+              <el-select v-model="query.category" placeholder="分类" clearable style="width:120px" @change="loadData">
                 <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
               </el-select>
+              <div class="range-input">
+                <span class="range-label">价格</span>
+                <el-input-number v-model="query.minPrice" :min="0" :precision="2" placeholder="最低" style="width:110px" @change="loadData" />
+                <span class="range-separator">-</span>
+                <el-input-number v-model="query.maxPrice" :min="0" :precision="2" placeholder="最高" style="width:110px" @change="loadData" />
+              </div>
+              <div class="range-input">
+                <span class="range-label">库存</span>
+                <el-input-number v-model="query.minStock" :min="0" placeholder="最低" style="width:100px" @change="loadData" />
+                <span class="range-separator">-</span>
+                <el-input-number v-model="query.maxStock" :min="0" placeholder="最高" style="width:100px" @change="loadData" />
+              </div>
               <el-button type="primary" :icon="Search" @click="loadData">搜索</el-button>
               <el-button @click="resetQuery">重置</el-button>
             </div>
@@ -97,7 +109,7 @@
             :total="total"
             :page-sizes="[5, 10, 20]"
             layout="total, sizes, prev, pager, next"
-            @change="loadData"
+            @change="handlePageChange"
           />
         </el-card>
       </el-col>
@@ -243,7 +255,7 @@ const cartDialogVisible = ref(false)
 const cartSubmitting = ref(false)
 const cartFormRef = ref()
 
-const query = reactive({ current: 1, size: 10, name: '', category: '' })
+const query = reactive({ current: 1, size: 10, name: '', category: '', minPrice: null, maxPrice: null, minStock: null, maxStock: null })
 const form = reactive({ id: null, name: '', category: '', price: 0, stock: 0, description: '' })
 const cartForm = reactive({ productId: null, productName: '', productStock: 0, reservedStock: 0, availableStock: 0, quantity: 1 })
 
@@ -290,6 +302,11 @@ const getRatingColor = (r) => {
 
 const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 19) : '-'
 
+const handlePageChange = () => {
+  loadData()
+  loadStats()
+}
+
 const loadData = async () => {
   loading.value = true
   try {
@@ -304,7 +321,8 @@ const loadData = async () => {
 const loadStats = async () => {
   statsLoading.value = true
   try {
-    const res = await getCategoryStats()
+    const { name, category, minPrice, maxPrice, minStock, maxStock } = query
+    const res = await getCategoryStats({ name, category, minPrice, maxPrice, minStock, maxStock })
     categoryStats.value = res.data
     categories.value = res.data.map(s => s.category)
   } finally {
@@ -315,8 +333,13 @@ const loadStats = async () => {
 const resetQuery = () => {
   query.name = ''
   query.category = ''
+  query.minPrice = null
+  query.maxPrice = null
+  query.minStock = null
+  query.maxStock = null
   query.current = 1
   loadData()
+  loadStats()
 }
 
 const openCreate = () => {
@@ -428,7 +451,10 @@ onMounted(() => {
 .stat-meta { display: flex; justify-content: space-between; font-size: 12px; color: #718096; margin-bottom: 6px; }
 
 .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
-.search-area { display: flex; align-items: center; gap: 8px; }
+.search-area { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.range-input { display: flex; align-items: center; gap: 6px; }
+.range-label { font-size: 13px; color: #606266; white-space: nowrap; }
+.range-separator { color: #909399; padding: 0 4px; }
 
 .price { color: #e6a23c; font-weight: 600; }
 .pagination { margin-top: 16px; justify-content: flex-end; }
