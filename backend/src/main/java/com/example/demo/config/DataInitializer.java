@@ -33,6 +33,29 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        final int maxRetries = 10;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                initializeData();
+                return;
+            } catch (Exception e) {
+                if (attempt == maxRetries) {
+                    log.error("演示数据初始化失败，应用将继续启动", e);
+                    return;
+                }
+                log.warn("数据库尚未就绪，3 秒后重试 ({}/{})", attempt, maxRetries);
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    log.warn("演示数据初始化被中断，跳过");
+                    return;
+                }
+            }
+        }
+    }
+
+    private void initializeData() {
         if (userMapper.selectCount(new LambdaQueryWrapper<User>().ge(User::getId, 1)) > 0) {
             log.info("演示数据已存在，跳过初始化");
             return;

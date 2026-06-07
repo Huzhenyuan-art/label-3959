@@ -158,7 +158,7 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
         return updatedCount;
     }
 
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(initialDelay = 60000, fixedRate = 60000)
     public void scheduledReleaseExpired() {
         try {
             int count = releaseExpiredReservations();
