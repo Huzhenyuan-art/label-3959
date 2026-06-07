@@ -37,6 +37,14 @@
           <el-icon><ChatDotRound /></el-icon>
           <span>商品评价</span>
         </el-menu-item>
+        <el-menu-item index="/coupons">
+          <el-icon><Present /></el-icon>
+          <span>优惠券中心</span>
+        </el-menu-item>
+        <el-menu-item index="/my-coupons">
+          <el-icon><Wallet /></el-icon>
+          <span>我的优惠券</span>
+        </el-menu-item>
         <el-menu-item index="/notifications">
           <el-icon><Bell /></el-icon>
           <span>消息中心</span>
