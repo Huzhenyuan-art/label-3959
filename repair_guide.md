@@ -657,6 +657,97 @@ const formatDate = (date) => {
 
 ---
 
+### 修复 #9：后端编译失败 - 重复 @Override 注解和 Lombok getter/setter 找不到
+
+**问题描述**：Docker 构建或 Maven 编译时出现大量编译错误：
+1. `CartServiceImpl.java:[128,1] java.lang.Override is not a repeatable annotation type`
+2. `CustomUserDetailsService.java`、`UserServiceImpl.java`、`ProductController.java` 中找不到 User 和 Product 实体类的 getter/setter 方法（如 `getUsername()`、`getStatus()`、`setId()` 等）
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+1. **重复 @Override 注解**：在 `CartServiceImpl.java` 的 `checkout` 方法上，有两个 `@Override` 注解（第 126 行和第 128 行），而 `@Override` 不是可重复注解
+2. **Lombok 注解处理器未正确配置**：Spring Boot 3.2.0 中，maven-compiler-plugin 需要显式配置 Lombok 注解处理器路径，否则 `@Data` 注解不会生成 getter/setter 方法，导致所有依赖这些方法的代码编译失败
+
+**影响范围**：后端全模块（编译失败，无法启动）
+
+**修复方案**：
+
+#### 1. 修复重复 @Override 注解
+
+**文件**：[backend/src/main/java/com/example/demo/service/impl/CartServiceImpl.java](backend/src/main/java/com/example/demo/service/impl/CartServiceImpl.java#L126-L128)
+
+**修复内容**：
+删除第 128 行重复的 `@Override` 注解：
+
+```java
+// 修复前
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+@Override
+    public Order checkout(List<Long> cartIds, String remark, Long userCouponId) {
+
+// 修复后
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Order checkout(List<Long> cartIds, String remark, Long userCouponId) {
+```
+
+#### 2. 修复 Lombok 注解处理器配置
+
+**文件**：[backend/pom.xml](backend/pom.xml#L19-L23)、[backend/pom.xml](backend/pom.xml#L91-L120)
+
+**修复内容 1 - 添加 lombok.version 属性**（在 properties 中）：
+```xml
+<!-- 修复前 -->
+<properties>
+    <java.version>17</java.version>
+    <mybatis-plus.version>3.5.7</mybatis-plus.version>
+</properties>
+
+<!-- 修复后 -->
+<properties>
+    <java.version>17</java.version>
+    <mybatis-plus.version>3.5.7</mybatis-plus.version>
+    <lombok.version>1.18.30</lombok.version>
+</properties>
+```
+
+**修复内容 2 - 添加 maven-compiler-plugin 配置**（在 build/plugins 中）：
+```xml
+<!-- 修复后新增 -->
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <version>3.11.0</version>
+    <configuration>
+        <annotationProcessorPaths>
+            <path>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </path>
+        </annotationProcessorPaths>
+    </configuration>
+</plugin>
+```
+
+**关键点**：
+- Spring Boot 3.x 中，Lombok 需要显式配置为注解处理器，而不仅仅是依赖
+- `maven-compiler-plugin` 的 `annotationProcessorPaths` 配置告诉编译器在编译时使用 Lombok 注解处理器
+- `@Data` 注解会在编译期生成 getter、setter、toString、equals、hashCode 等方法
+- 如果注解处理器未正确配置，这些方法在编译时不存在，导致所有调用这些方法的代码报错
+
+**修复验证**：
+1. 在后端根目录执行 `mvn clean compile`
+2. 确认编译成功，输出 `BUILD SUCCESS`
+3. 确认没有任何错误或警告（警告可以有，但不能有错误）
+4. 执行 `mvn clean package -DskipTests` 确认可以正常打包
+5. 如果是 Docker 构建，重新执行 `docker build` 确认镜像构建成功
+6. 启动应用，确认可以正常启动，没有 ClassNotFoundException 或 NoSuchMethodError
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题
