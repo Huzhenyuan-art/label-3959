@@ -7,9 +7,8 @@ import com.example.demo.dto.RefundApplyDTO;
 import com.example.demo.dto.RefundAuditDTO;
 import com.example.demo.dto.RefundDetailDTO;
 import com.example.demo.entity.Order;
-import com.example.demo.entity.OrderItem;
-import com.example.demo.entity.Product;
 import com.example.demo.entity.RefundOrder;
+import com.example.demo.enums.OrderStatusEnum;
 import com.example.demo.enums.RefundStatusEnum;
 import com.example.demo.mapper.OrderItemMapper;
 import com.example.demo.mapper.OrderMapper;
@@ -18,7 +17,10 @@ import com.example.demo.mapper.RefundOrderMapper;
 import com.example.demo.service.NotificationService;
 import com.example.demo.service.RefundOrderService;
 import com.example.demo.service.StockReservationService;
+import com.example.demo.util.OrderValidationUtil;
+import com.example.demo.util.RefundValidationUtil;
 import com.example.demo.util.SecurityUtil;
+import com.example.demo.util.StockOperationUtil;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,8 +28,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -55,61 +55,28 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
         if (detail == null) {
             throw new IllegalArgumentException("退款单不存在: " + id);
         }
-        if (!SecurityUtil.isAdmin() && !detail.getUserId().equals(SecurityUtil.getCurrentUserId())) {
-            throw new SecurityException("无权查看他人退款单");
-        }
+        SecurityUtil.checkResourceOwnerOrThrow(detail.getUserId());
         return detail;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RefundOrder applyRefund(RefundApplyDTO dto) {
-        Order order = orderMapper.selectById(dto.getOrderId());
-        if (order == null) {
-            throw new IllegalArgumentException("订单不存在: " + dto.getOrderId());
-        }
+        Order order = OrderValidationUtil.getOrderOrThrow(orderMapper, dto.getOrderId());
+        SecurityUtil.checkResourceOwnerOrThrow(order.getUserId());
+        OrderValidationUtil.validateRefundableStatus(order.getStatus());
+        RefundValidationUtil.checkNoPendingRefund(refundOrderMapper, dto.getOrderId());
+        RefundValidationUtil.validateRefundAmount(dto.getRefundAmount(), order.getTotalAmount());
 
-        Long currentUserId = SecurityUtil.getCurrentUserId();
-        if (!order.getUserId().equals(currentUserId)) {
-            throw new SecurityException("无权申请他人订单退款");
-        }
-
-        if (order.getStatus() != 1 && order.getStatus() != 2 && order.getStatus() != 3) {
-            throw new IllegalArgumentException("当前订单状态不允许申请退款");
-        }
-
-        RefundOrder existingPending = refundOrderMapper.selectPendingByOrderId(dto.getOrderId());
-        if (existingPending != null) {
-            throw new IllegalArgumentException("该订单已有待审核的退款申请");
-        }
-
-        if (dto.getRefundAmount().compareTo(order.getTotalAmount()) > 0) {
-            throw new IllegalArgumentException("退款金额不能超过订单金额");
-        }
-
-        RefundOrder refundOrder = new RefundOrder();
-        refundOrder.setOrderId(dto.getOrderId());
-        refundOrder.setUserId(currentUserId);
-        String refundNo = generateRefundNo();
-        refundOrder.setRefundNo(refundNo);
-        refundOrder.setRefundAmount(dto.getRefundAmount());
-        refundOrder.setRefundType(dto.getRefundType());
-        refundOrder.setRefundReason(dto.getRefundReason());
-        refundOrder.setRefundDesc(dto.getRefundDesc());
-        refundOrder.setProofImages(dto.getProofImages());
-        refundOrder.setStatus(RefundStatusEnum.PENDING.getCode());
-        refundOrder.setOriginalOrderStatus(order.getStatus());
+        RefundOrder refundOrder = buildRefundOrder(dto, order);
         save(refundOrder);
 
-        Integer oldOrderStatus = order.getStatus();
-        order.setStatus(5);
-        orderMapper.updateById(order);
-        notificationService.sendOrderStatusNotification(currentUserId, dto.getOrderId(), oldOrderStatus, 5);
+        updateOrderStatus(order, OrderStatusEnum.REFUNDING.getCode());
 
-        notificationService.sendRefundApplyNotification(currentUserId, dto.getOrderId(), refundNo);
+        notificationService.sendRefundApplyNotification(order.getUserId(), dto.getOrderId(), refundOrder.getRefundNo());
 
         logger.info("用户申请退款成功: refundId={}, orderId={}, userId={}, amount={}, refundNo={}",
-                refundOrder.getId(), dto.getOrderId(), currentUserId, dto.getRefundAmount(), refundNo);
+                refundOrder.getId(), dto.getOrderId(), order.getUserId(), dto.getRefundAmount(), refundOrder.getRefundNo());
 
         return refundOrder;
     }
@@ -117,64 +84,20 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void auditRefund(RefundAuditDTO dto) {
-        if (!SecurityUtil.isAdmin()) {
-            throw new SecurityException("只有管理员可以审核退款");
-        }
+        SecurityUtil.checkAdminOrThrow();
 
-        RefundOrder refundOrder = getById(dto.getRefundId());
-        if (refundOrder == null) {
-            throw new IllegalArgumentException("退款单不存在: " + dto.getRefundId());
-        }
-
-        if (!RefundStatusEnum.PENDING.getCode().equals(refundOrder.getStatus())) {
-            throw new IllegalArgumentException("退款单状态不允许审核");
-        }
-
-        Order order = orderMapper.selectById(refundOrder.getOrderId());
-        if (order == null) {
-            throw new IllegalArgumentException("关联订单不存在");
-        }
+        RefundOrder refundOrder = RefundValidationUtil.getRefundOrThrow(refundOrderMapper, dto.getRefundId());
+        RefundValidationUtil.checkPendingStatus(refundOrder);
+        Order order = OrderValidationUtil.getOrderOrThrow(orderMapper, refundOrder.getOrderId());
 
         refundOrder.setAuditUserId(SecurityUtil.getCurrentUserId());
         refundOrder.setAuditRemark(dto.getAuditRemark());
         refundOrder.setAuditTime(LocalDateTime.now());
 
         if (dto.getApproved()) {
-            refundOrder.setStatus(RefundStatusEnum.APPROVED.getCode());
-
-            Integer oldStatus = order.getStatus();
-            order.setStatus(4);
-            orderMapper.updateById(order);
-
-            Integer originalStatus = refundOrder.getOriginalOrderStatus();
-            if (originalStatus != null && originalStatus == 3) {
-                rollbackStock(refundOrder.getOrderId());
-                stockReservationService.releaseReservations(order.getId(), "退款审核通过，库存回滚");
-                logger.info("退款审核通过，回滚已扣减库存: refundId={}, orderId={}",
-                        dto.getRefundId(), refundOrder.getOrderId());
-            } else {
-                stockReservationService.releaseReservations(order.getId(), "退款审核通过，释放预占库存");
-                logger.info("退款审核通过，释放预占库存（未扣减总库存）: refundId={}, orderId={}",
-                        dto.getRefundId(), refundOrder.getOrderId());
-            }
-
-            notificationService.sendOrderStatusNotification(order.getUserId(), order.getId(), oldStatus, 4);
-
-            logger.info("退款审核通过: refundId={}, orderId={}, userId={}",
-                    dto.getRefundId(), refundOrder.getOrderId(), refundOrder.getUserId());
+            handleApprovedRefund(refundOrder, order);
         } else {
-            refundOrder.setStatus(RefundStatusEnum.REJECTED.getCode());
-
-            Integer recoverStatus = refundOrder.getOriginalOrderStatus();
-            if (recoverStatus != null) {
-                Integer oldStatus = order.getStatus();
-                order.setStatus(recoverStatus);
-                orderMapper.updateById(order);
-                notificationService.sendOrderStatusNotification(order.getUserId(), order.getId(), oldStatus, recoverStatus);
-            }
-
-            logger.info("退款审核拒绝: refundId={}, orderId={}, userId={}, reason={}",
-                    dto.getRefundId(), refundOrder.getOrderId(), refundOrder.getUserId(), dto.getAuditRemark());
+            handleRejectedRefund(refundOrder, order);
         }
 
         updateById(refundOrder);
@@ -188,53 +111,73 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void cancelRefund(Long id) {
-        RefundOrder refundOrder = getById(id);
-        if (refundOrder == null) {
-            throw new IllegalArgumentException("退款单不存在: " + id);
-        }
-
-        Long currentUserId = SecurityUtil.getCurrentUserId();
-        if (!refundOrder.getUserId().equals(currentUserId)) {
-            throw new SecurityException("无权取消他人退款申请");
-        }
-
-        if (!RefundStatusEnum.PENDING.getCode().equals(refundOrder.getStatus())) {
-            throw new IllegalArgumentException("退款单状态不允许取消");
-        }
+        RefundOrder refundOrder = RefundValidationUtil.getRefundAndCheckPermission(refundOrderMapper, id);
+        RefundValidationUtil.checkPendingStatus(refundOrder);
 
         refundOrder.setStatus(RefundStatusEnum.CANCELLED.getCode());
         updateById(refundOrder);
 
         Order order = orderMapper.selectById(refundOrder.getOrderId());
         if (order != null && refundOrder.getOriginalOrderStatus() != null) {
-            Integer oldStatus = order.getStatus();
-            order.setStatus(refundOrder.getOriginalOrderStatus());
-            orderMapper.updateById(order);
-            notificationService.sendOrderStatusNotification(currentUserId, order.getId(), oldStatus, refundOrder.getOriginalOrderStatus());
+            updateOrderStatus(order, refundOrder.getOriginalOrderStatus());
         }
 
         logger.info("用户取消退款申请: refundId={}, orderId={}", id, refundOrder.getOrderId());
     }
 
-    private void rollbackStock(Long orderId) {
-        List<OrderItem> orderItems = orderItemMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<OrderItem>()
-                        .eq(OrderItem::getOrderId, orderId)
-        );
-
-        for (OrderItem item : orderItems) {
-            Product product = productMapper.selectById(item.getProductId());
-            if (product != null) {
-                product.setStock(product.getStock() + item.getQuantity());
-                productMapper.updateById(product);
-                logger.info("库存回滚: productId={}, productName={}, quantity={}",
-                        item.getProductId(), item.getProductName(), item.getQuantity());
-            }
-        }
+    private RefundOrder buildRefundOrder(RefundApplyDTO dto, Order order) {
+        RefundOrder refundOrder = new RefundOrder();
+        refundOrder.setOrderId(dto.getOrderId());
+        refundOrder.setUserId(order.getUserId());
+        refundOrder.setRefundNo(RefundValidationUtil.generateRefundNo());
+        refundOrder.setRefundAmount(dto.getRefundAmount());
+        refundOrder.setRefundType(dto.getRefundType());
+        refundOrder.setRefundReason(dto.getRefundReason());
+        refundOrder.setRefundDesc(dto.getRefundDesc());
+        refundOrder.setProofImages(dto.getProofImages());
+        refundOrder.setStatus(RefundStatusEnum.PENDING.getCode());
+        refundOrder.setOriginalOrderStatus(order.getStatus());
+        return refundOrder;
     }
 
-    private String generateRefundNo() {
-        return "REF" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    private void updateOrderStatus(Order order, Integer newStatus) {
+        Integer oldStatus = order.getStatus();
+        order.setStatus(newStatus);
+        orderMapper.updateById(order);
+        notificationService.sendOrderStatusNotification(order.getUserId(), order.getId(), oldStatus, newStatus);
+    }
+
+    private void handleApprovedRefund(RefundOrder refundOrder, Order order) {
+        refundOrder.setStatus(RefundStatusEnum.APPROVED.getCode());
+        updateOrderStatus(order, OrderStatusEnum.CANCELLED.getCode());
+
+        Integer originalStatus = refundOrder.getOriginalOrderStatus();
+        if (originalStatus != null && OrderStatusEnum.COMPLETED.getCode().equals(originalStatus)) {
+            StockOperationUtil.rollbackStock(refundOrder.getOrderId(), orderItemMapper, productMapper);
+            stockReservationService.releaseReservations(order.getId(), "退款审核通过，库存回滚");
+            logger.info("退款审核通过，回滚已扣减库存: refundId={}, orderId={}",
+                    refundOrder.getId(), refundOrder.getOrderId());
+        } else {
+            stockReservationService.releaseReservations(order.getId(), "退款审核通过，释放预占库存");
+            logger.info("退款审核通过，释放预占库存（未扣减总库存）: refundId={}, orderId={}",
+                    refundOrder.getId(), refundOrder.getOrderId());
+        }
+
+        logger.info("退款审核通过: refundId={}, orderId={}, userId={}",
+                refundOrder.getId(), refundOrder.getOrderId(), refundOrder.getUserId());
+    }
+
+    private void handleRejectedRefund(RefundOrder refundOrder, Order order) {
+        refundOrder.setStatus(RefundStatusEnum.REJECTED.getCode());
+
+        Integer recoverStatus = refundOrder.getOriginalOrderStatus();
+        if (recoverStatus != null) {
+            updateOrderStatus(order, recoverStatus);
+        }
+
+        logger.info("退款审核拒绝: refundId={}, orderId={}, userId={}, reason={}",
+                refundOrder.getId(), refundOrder.getOrderId(), refundOrder.getUserId(), refundOrder.getAuditRemark());
     }
 }

@@ -1,7 +1,9 @@
-import request from './index'
+import request, { createApiCall } from './index'
 
-export const getRefundPage = (params) => request.get('/refunds/page', { params })
-export const getRefundDetail = (id) => request.get(`/refunds/${id}`)
-export const applyRefund = (data) => request.post('/refunds/apply', data)
-export const auditRefund = (data) => request.post('/refunds/audit', data)
-export const cancelRefund = (id) => request.put(`/refunds/${id}/cancel`)
+const basePath = '/refunds'
+
+export const getRefundPage = createApiCall(params => request.get(`${basePath}/page`, { params }))
+export const getRefundDetail = createApiCall(id => request.get(`${basePath}/${id}`))
+export const applyRefund = createApiCall(data => request.post(`${basePath}/apply`, data))
+export const auditRefund = createApiCall(data => request.post(`${basePath}/audit`, data))
+export const cancelRefund = createApiCall(id => request.put(`${basePath}/${id}/cancel`))

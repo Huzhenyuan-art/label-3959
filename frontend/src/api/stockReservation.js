@@ -1,5 +1,7 @@
-import request from './index'
+import request, { createApiCall } from './index'
 
-export const getStockReservationPage = (params) => request.get('/stock-reservations/page', { params })
-export const getStockReservationsByOrderId = (orderId) => request.get(`/stock-reservations/order/${orderId}`)
-export const releaseExpiredReservations = () => request.post('/stock-reservations/release-expired')
+const basePath = '/stock-reservations'
+
+export const getStockReservationPage = createApiCall(params => request.get(`${basePath}/page`, { params }))
+export const getStockReservationsByOrderId = createApiCall(orderId => request.get(`${basePath}/order/${orderId}`))
+export const releaseExpiredReservations = createApiCall(() => request.post(`${basePath}/release-expired`))

@@ -6,6 +6,8 @@ import com.example.demo.enums.OperationTypeEnum;
 import com.example.demo.service.OperationLogService;
 import com.example.demo.util.SecurityUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,9 +26,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Aspect
@@ -34,14 +39,39 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class OperationLogAspect {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+            .findAndRegisterModules()
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+
+    private static final ParameterNameDiscoverer NAME_DISCOVERER = new DefaultParameterNameDiscoverer();
+
+    private static final SpelExpressionParser SPEL_PARSER = new SpelExpressionParser();
+
+    private static final Set<Class<?>> EXCLUDED_PARAM_TYPES = Set.of(
+            jakarta.servlet.ServletRequest.class,
+            jakarta.servlet.ServletResponse.class,
+            jakarta.servlet.http.HttpSession.class,
+            java.io.InputStream.class,
+            java.io.OutputStream.class
+    );
+
+    private static final String[] IP_HEADERS = {
+            "X-Forwarded-For", "Proxy-Client-IP", "WL-Proxy-Client-IP", "X-Real-IP"
+    };
+
     private final OperationLogService operationLogService;
     private final ApplicationContext applicationContext;
-    private final ObjectMapper objectMapper = new ObjectMapper()
-            .findAndRegisterModules()
-            .configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 
-    private final SpelExpressionParser parser = new SpelExpressionParser();
-    private final ParameterNameDiscoverer nameDiscoverer = new DefaultParameterNameDiscoverer();
+    private final Map<String, Expression> expressionCache = new ConcurrentHashMap<>();
+    private final Map<Method, String[]> paramNameCache = new ConcurrentHashMap<>();
+    private final Map<String, BaseMapper<?>> mapperCache = new ConcurrentHashMap<>();
+
+    @PostConstruct
+    public void initMapperCache() {
+        Map<String, BaseMapper> beans = applicationContext.getBeansOfType(BaseMapper.class);
+        beans.forEach((name, mapper) -> mapperCache.put(name, mapper));
+        log.info("预加载 Mapper 缓存，共 {} 个 Mapper", mapperCache.size());
+    }
 
     @Around("@annotation(operationLogAnnotation)")
     public Object around(ProceedingJoinPoint joinPoint, OperationLog operationLogAnnotation) throws Throwable {
@@ -80,9 +110,10 @@ public class OperationLogAspect {
         }
     }
 
-    private Object resolveTargetId(ProceedingJoinPoint joinPoint, String expression, Object result) {
+    private Object resolveTargetId(ProceedingJoinPoint joinPoint, String expressionStr, Object result) {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-        String[] paramNames = nameDiscoverer.getParameterNames(signature.getMethod());
+        Method method = signature.getMethod();
+        String[] paramNames = paramNameCache.computeIfAbsent(method, NAME_DISCOVERER::getParameterNames);
         Object[] args = joinPoint.getArgs();
 
         EvaluationContext context = new StandardEvaluationContext();
@@ -95,28 +126,20 @@ public class OperationLogAspect {
             context.setVariable("result", result);
         }
 
-        Expression exp = parser.parseExpression(expression);
+        Expression exp = expressionCache.computeIfAbsent(expressionStr, SPEL_PARSER::parseExpression);
         return exp.getValue(context);
     }
 
     private Object getBeforeData(String targetType, Object targetId, OperationTypeEnum operationType) {
-        if (targetId == null) {
-            return null;
-        }
-
-        if (operationType.name().endsWith("_CREATE")) {
+        if (targetId == null || operationType.name().endsWith("_CREATE")) {
             return null;
         }
 
         try {
-            String className = Character.toUpperCase(targetType.charAt(0)) + targetType.substring(1);
-            String mapperName = className + "Mapper";
-            String beanName = Character.toLowerCase(mapperName.charAt(0)) + mapperName.substring(1);
-
-            Object mapperBean = applicationContext.getBean(beanName);
-            if (mapperBean instanceof BaseMapper) {
-                BaseMapper<?> mapper = (BaseMapper<?>) mapperBean;
-                Long id = targetId instanceof Number ? ((Number) targetId).longValue() : Long.parseLong(targetId.toString());
+            String mapperBeanName = getMapperBeanName(targetType);
+            BaseMapper<?> mapper = mapperCache.get(mapperBeanName);
+            if (mapper != null) {
+                Long id = toLong(targetId);
                 return mapper.selectById(id);
             }
         } catch (Exception e) {
@@ -139,7 +162,7 @@ public class OperationLogAspect {
         operationLog.setOperatorRole(SecurityUtil.getCurrentRole());
 
         if (targetId != null) {
-            operationLog.setTargetId(targetId instanceof Number ? ((Number) targetId).longValue() : Long.parseLong(targetId.toString()));
+            operationLog.setTargetId(toLong(targetId));
         }
         operationLog.setTargetType(operationLogAnnotation.targetType());
 
@@ -172,21 +195,22 @@ public class OperationLogAspect {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
+        for (String header : IP_HEADERS) {
+            String ip = request.getHeader(header);
+            if (isValidIp(ip)) {
+                return extractFirstIp(ip);
+            }
         }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
+        return request.getRemoteAddr();
+    }
+
+    private boolean isValidIp(String ip) {
+        return ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip);
+    }
+
+    private String extractFirstIp(String ip) {
+        if (ip.contains(",")) {
+            return ip.split(",")[0].trim();
         }
         return ip;
     }
@@ -211,17 +235,26 @@ public class OperationLogAspect {
                 }
             });
 
-            return objectMapper.writeValueAsString(params);
+            return OBJECT_MAPPER.writeValueAsString(params);
         } catch (Exception e) {
             return null;
         }
     }
 
     private boolean isExcludedType(Object obj) {
-        return obj instanceof jakarta.servlet.ServletRequest
-                || obj instanceof jakarta.servlet.ServletResponse
-                || obj instanceof jakarta.servlet.http.HttpSession
-                || obj instanceof java.io.InputStream
-                || obj instanceof java.io.OutputStream;
+        return EXCLUDED_PARAM_TYPES.stream().anyMatch(clazz -> clazz.isInstance(obj));
+    }
+
+    private String getMapperBeanName(String targetType) {
+        String className = Character.toUpperCase(targetType.charAt(0)) + targetType.substring(1);
+        String mapperName = className + "Mapper";
+        return Character.toLowerCase(mapperName.charAt(0)) + mapperName.substring(1);
+    }
+
+    private Long toLong(Object targetId) {
+        if (targetId instanceof Number) {
+            return ((Number) targetId).longValue();
+        }
+        return Long.parseLong(targetId.toString());
     }
 }

@@ -1,8 +1,10 @@
-import request from './index'
+import request, { createApiCall } from './index'
 
-export const getOrderPage = (params) => request.get('/orders/page', { params })
-export const getOrderDetail = (id) => request.get(`/orders/${id}`)
-export const createOrder = (data) => request.post('/orders', data)
-export const updateOrderStatus = (id, data) => request.put(`/orders/${id}/status`, data)
-export const processRefund = (id, data) => request.put(`/orders/${id}/refund`, data)
-export const updateOrderRemark = (id, data) => request.put(`/orders/${id}/remark`, data)
+const basePath = '/orders'
+
+export const getOrderPage = createApiCall(params => request.get(`${basePath}/page`, { params }))
+export const getOrderDetail = createApiCall(id => request.get(`${basePath}/${id}`))
+export const createOrder = createApiCall(data => request.post(basePath, data))
+export const updateOrderStatus = createApiCall((id, data) => request.put(`${basePath}/${id}/status`, data))
+export const processRefund = createApiCall((id, data) => request.put(`${basePath}/${id}/refund`, data))
+export const updateOrderRemark = createApiCall((id, data) => request.put(`${basePath}/${id}/remark`, data))

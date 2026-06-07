@@ -1,9 +1,15 @@
-import request from './index'
+import request, { createCrudApi, createApiCall } from './index'
 
-export const getProductPage = (params) => request.get('/products/page', { params })
-export const getProductList = () => request.get('/products')
-export const getProductById = (id) => request.get(`/products/${id}`)
-export const createProduct = (data) => request.post('/products', data)
-export const updateProduct = (id, data) => request.put(`/products/${id}`, data)
-export const deleteProduct = (id) => request.delete(`/products/${id}`)
-export const getCategoryStats = (params) => request.get('/products/stats', { params })
+const basePath = '/products'
+const crudApi = createCrudApi(basePath)
+
+export const {
+  getPage: getProductPage,
+  getList: getProductList,
+  getById: getProductById,
+  create: createProduct,
+  update: updateProduct,
+  remove: deleteProduct
+} = crudApi
+
+export const getCategoryStats = createApiCall(params => request.get(`${basePath}/stats`, { params }))

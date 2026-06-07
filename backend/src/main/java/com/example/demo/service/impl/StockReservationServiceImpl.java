@@ -1,6 +1,5 @@
 package com.example.demo.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -13,6 +12,7 @@ import com.example.demo.mapper.ProductMapper;
 import com.example.demo.mapper.StockReservationMapper;
 import com.example.demo.service.StockReservationService;
 import com.example.demo.util.SecurityUtil;
+import com.example.demo.util.StockOperationUtil;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Consumer;
 
 @Service
 @RequiredArgsConstructor
@@ -38,91 +39,53 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
         Long orderId = dto.getOrderId();
         LocalDateTime expireTime = dto.getExpireTime();
 
-        List<StockReservationCreateDTO.ReservationItem> items = dto.getItems();
-        for (StockReservationCreateDTO.ReservationItem item : items) {
-            Product product = productMapper.selectById(item.getProductId());
-            if (product == null) {
-                throw new IllegalArgumentException("商品不存在: " + item.getProductId());
-            }
-
-            int availableStock = product.getStock() - (product.getReservedStock() == null ? 0 : product.getReservedStock());
-            if (availableStock < item.getQuantity()) {
-                throw new IllegalArgumentException("商品【" + product.getName() + "】库存不足，可用库存: " + availableStock + "，需要: " + item.getQuantity());
-            }
-
-            int updated = stockReservationMapper.increaseReservedStock(item.getProductId(), item.getQuantity());
-            if (updated == 0) {
-                throw new IllegalArgumentException("商品【" + product.getName() + "】预占库存失败，请稍后重试");
-            }
-
-            StockReservation reservation = new StockReservation();
-            reservation.setOrderId(orderId);
-            reservation.setOrderItemId(item.getOrderItemId());
-            reservation.setProductId(item.getProductId());
-            reservation.setProductName(item.getProductName());
-            reservation.setQuantity(item.getQuantity());
-            reservation.setStatus(StockReservationStatusEnum.RESERVED.getCode());
-            reservation.setExpireTime(expireTime);
-            save(reservation);
-
-            logger.info("创建库存预占成功: orderId={}, productId={}, productName={}, quantity={}",
-                    orderId, item.getProductId(), item.getProductName(), item.getQuantity());
+        for (StockReservationCreateDTO.ReservationItem item : dto.getItems()) {
+            createSingleReservation(orderId, expireTime, item);
         }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void releaseReservations(Long orderId, String reason) {
-        LambdaQueryWrapper<StockReservation> wrapper = new LambdaQueryWrapper<StockReservation>()
-                .eq(StockReservation::getOrderId, orderId)
-                .eq(StockReservation::getStatus, StockReservationStatusEnum.RESERVED.getCode());
-
-        List<StockReservation> reservations = list(wrapper);
+        List<StockReservation> reservations = StockOperationUtil.getActiveReservations(stockReservationMapper, orderId);
         if (reservations.isEmpty()) {
             logger.warn("未找到需要释放的预占记录: orderId={}", orderId);
             return;
         }
 
-        for (StockReservation reservation : reservations) {
+        processReservations(reservations, reservation -> {
             int updated = stockReservationMapper.decreaseReservedStock(reservation.getProductId(), reservation.getQuantity());
             if (updated == 0) {
                 throw new IllegalArgumentException("释放预占库存失败，商品ID: " + reservation.getProductId());
             }
-
             reservation.setStatus(StockReservationStatusEnum.RELEASED.getCode());
             reservation.setReleaseReason(reason);
             updateById(reservation);
-
             logger.info("释放库存预占: orderId={}, productId={}, productName={}, quantity={}, reason={}",
                     orderId, reservation.getProductId(), reservation.getProductName(), reservation.getQuantity(), reason);
-        }
+        });
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deductStock(Long orderId) {
-        LambdaQueryWrapper<StockReservation> wrapper = new LambdaQueryWrapper<StockReservation>()
-                .eq(StockReservation::getOrderId, orderId)
-                .eq(StockReservation::getStatus, StockReservationStatusEnum.RESERVED.getCode());
-
-        List<StockReservation> reservations = list(wrapper);
+        List<StockReservation> reservations = StockOperationUtil.getActiveReservations(stockReservationMapper, orderId);
         if (reservations.isEmpty()) {
             logger.warn("未找到需要扣减的预占记录: orderId={}", orderId);
             return;
         }
 
-        for (StockReservation reservation : reservations) {
+        processReservations(reservations, reservation -> {
             int updated = stockReservationMapper.deductStock(reservation.getProductId(), reservation.getQuantity());
             if (updated == 0) {
-                throw new IllegalArgumentException("扣减库存失败，商品ID: " + reservation.getProductId() + "，商品名称: " + reservation.getProductName());
+                throw new IllegalArgumentException("扣减库存失败，商品ID: " + reservation.getProductId()
+                        + "，商品名称: " + reservation.getProductName());
             }
-
             reservation.setStatus(StockReservationStatusEnum.DEDUCTED.getCode());
             updateById(reservation);
-
             logger.info("正式扣减库存: orderId={}, productId={}, productName={}, quantity={}",
                     orderId, reservation.getProductId(), reservation.getProductName(), reservation.getQuantity());
-        }
+        });
     }
 
     @Override
@@ -151,7 +114,8 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
         for (StockReservation reservation : expiredReservations) {
             stockReservationMapper.decreaseReservedStock(reservation.getProductId(), reservation.getQuantity());
             logger.info("超时自动释放预占: reservationId={}, orderId={}, productId={}, productName={}, quantity={}",
-                    reservation.getId(), reservation.getOrderId(), reservation.getProductId(), reservation.getProductName(), reservation.getQuantity());
+                    reservation.getId(), reservation.getOrderId(), reservation.getProductId(),
+                    reservation.getProductName(), reservation.getQuantity());
         }
 
         logger.info("本次超时释放预占记录数: {}", updatedCount);
@@ -167,6 +131,35 @@ public class StockReservationServiceImpl extends ServiceImpl<StockReservationMap
             }
         } catch (Exception e) {
             logger.error("定时释放超时预占失败", e);
+        }
+    }
+
+    private void createSingleReservation(Long orderId, LocalDateTime expireTime, StockReservationCreateDTO.ReservationItem item) {
+        Product product = StockOperationUtil.getProductOrThrow(productMapper, item.getProductId());
+        StockOperationUtil.validateStockAvailability(product, item.getQuantity());
+
+        int updated = stockReservationMapper.increaseReservedStock(item.getProductId(), item.getQuantity());
+        if (updated == 0) {
+            throw new IllegalArgumentException("商品【" + product.getName() + "】预占库存失败，请稍后重试");
+        }
+
+        StockReservation reservation = new StockReservation();
+        reservation.setOrderId(orderId);
+        reservation.setOrderItemId(item.getOrderItemId());
+        reservation.setProductId(item.getProductId());
+        reservation.setProductName(item.getProductName());
+        reservation.setQuantity(item.getQuantity());
+        reservation.setStatus(StockReservationStatusEnum.RESERVED.getCode());
+        reservation.setExpireTime(expireTime);
+        save(reservation);
+
+        logger.info("创建库存预占成功: orderId={}, productId={}, productName={}, quantity={}",
+                orderId, item.getProductId(), item.getProductName(), item.getQuantity());
+    }
+
+    private void processReservations(List<StockReservation> reservations, Consumer<StockReservation> processor) {
+        for (StockReservation reservation : reservations) {
+            processor.accept(reservation);
         }
     }
 }
