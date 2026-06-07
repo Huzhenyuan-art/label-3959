@@ -45,8 +45,9 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
         if (product == null) {
             throw new IllegalArgumentException("商品不存在");
         }
-        if (product.getStock() < quantity) {
-            throw new IllegalArgumentException("库存不足");
+        int availableStock = product.getStock() - (product.getReservedStock() == null ? 0 : product.getReservedStock());
+        if (availableStock < quantity) {
+            throw new IllegalArgumentException("库存不足，可用库存: " + availableStock);
         }
 
         LambdaQueryWrapper<Cart> wrapper = new LambdaQueryWrapper<>();
@@ -55,8 +56,8 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
 
         if (existingCart != null) {
             int newQuantity = existingCart.getQuantity() + quantity;
-            if (product.getStock() < newQuantity) {
-                throw new IllegalArgumentException("库存不足");
+            if (availableStock < newQuantity) {
+                throw new IllegalArgumentException("库存不足，可用库存: " + availableStock);
             }
             existingCart.setQuantity(newQuantity);
             updateById(existingCart);
@@ -89,8 +90,9 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
         if (product == null) {
             throw new IllegalArgumentException("商品不存在");
         }
-        if (product.getStock() < quantity) {
-            throw new IllegalArgumentException("库存不足");
+        int availableStock = product.getStock() - (product.getReservedStock() == null ? 0 : product.getReservedStock());
+        if (availableStock < quantity) {
+            throw new IllegalArgumentException("库存不足，可用库存: " + availableStock);
         }
 
         cart.setQuantity(quantity);
@@ -138,8 +140,9 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
         }
 
         for (CartItemDTO item : cartItems) {
-            if (item.getProductStock() < item.getQuantity()) {
-                throw new IllegalArgumentException("商品【" + item.getProductName() + "】库存不足");
+            int availableStock = item.getProductStock() - (item.getProductReservedStock() == null ? 0 : item.getProductReservedStock());
+            if (availableStock < item.getQuantity()) {
+                throw new IllegalArgumentException("商品【" + item.getProductName() + "】库存不足，可用库存: " + availableStock);
             }
         }
 
@@ -156,10 +159,6 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
 
             BigDecimal itemTotal = item.getProductPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
             totalAmount = totalAmount.add(itemTotal);
-
-            Product product = productMapper.selectById(item.getProductId());
-            product.setStock(product.getStock() - item.getQuantity());
-            productMapper.updateById(product);
         }
 
         Order order = new Order();

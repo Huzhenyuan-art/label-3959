@@ -23,6 +23,8 @@ public class CartItemDTO {
 
     private Integer productStock;
 
+    private Integer productReservedStock;
+
     private String productCategory;
 
     private Integer quantity;

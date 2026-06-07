@@ -5,7 +5,9 @@
         演示特性：<el-tag size="small" type="success">独立购物车数据表</el-tag>
         <el-tag size="small" type="warning" class="ml-8">用户权限隔离</el-tag>
         <el-tag size="small" class="ml-8">事务结算生成订单</el-tag>
-        <el-tag size="small" type="info" class="ml-8">自动扣减库存</el-tag>
+        <el-tag size="small" type="success" class="ml-8">下单预占</el-tag>
+        <el-tag size="small" type="warning" class="ml-8">收货扣减</el-tag>
+        <el-tag size="small" type="info" class="ml-8">防止超卖</el-tag>
       </template>
     </el-alert>
 
@@ -59,7 +61,7 @@
               <el-input-number
                 v-model="item.quantity"
                 :min="1"
-                :max="item.productStock"
+                :max="getAvailableStock(item)"
                 size="small"
                 :controls="false"
                 style="width: 60px"
@@ -68,10 +70,15 @@
               <el-button
                 size="small"
                 :icon="Plus"
-                :disabled="item.quantity >= item.productStock"
+                :disabled="item.quantity >= getAvailableStock(item)"
                 @click="handleUpdateQuantity(item, item.quantity + 1)"
               />
-              <span class="stock-tip">库存: {{ item.productStock }}</span>
+              <span class="stock-tip">
+                可用: {{ getAvailableStock(item) }}
+                <span v-if="(item.productReservedStock || 0) > 0" class="reserved-tip">
+                  (预占: {{ item.productReservedStock || 0 }})
+                </span>
+              </span>
             </div>
 
             <div class="item-total">
@@ -319,6 +326,12 @@ const buildFullAddress = (address) => {
   return full
 }
 
+const getAvailableStock = (item) => {
+  const total = item.productStock || 0
+  const reserved = item.productReservedStock || 0
+  return Math.max(0, total - reserved)
+}
+
 const loadData = async () => {
   loading.value = true
   try {
@@ -523,8 +536,12 @@ onMounted(loadData)
 }
 .stock-tip {
   font-size: 12px;
-  color: #909399;
+  color: #67c23a;
   margin-left: 8px;
+}
+.reserved-tip {
+  color: #e6a23c;
+  margin-left: 4px;
 }
 
 .item-total {

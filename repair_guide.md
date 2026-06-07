@@ -1072,6 +1072,190 @@ private String password;
 
 ---
 
+### 修复 #13：下单时错误扣减总库存
+
+**问题描述**：用户下单（购物车结算）后，商品的总库存（`stock` 字段）立即被扣减。正确的逻辑应该是：下单时只预占库存（增加 `reserved_stock`，不扣减 `stock`），确认收货后才正式扣减总库存。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+1. **核心问题**：`CartServiceImpl.checkout()` 方法中（原第 160-162 行），在遍历购物车项创建订单项时，直接通过 `product.setStock(product.getStock() - item.getQuantity())` 扣减了总库存 `stock`。
+2. **并发安全问题**：这段扣减库存的代码采用"先查询、再修改、后更新"的非原子操作，在高并发场景下可能导致超卖。
+3. **库存校验错误**：购物车添加商品、修改数量、结算时的库存校验都使用了总库存 `stock`，而不是可用库存（`stock - reserved_stock`），导致在有商品被预占时，库存判断不准确。
+4. **数据不完整**：`CartItemDTO` 和 `CartMapper.xml` 缺少 `reserved_stock` 字段，前端无法计算并展示可用库存。
+
+**影响范围**：购物车模块 - 结算功能；库存预占模块 - 核心机制
+
+**修复方案**：
+
+#### 1. 后端修复 - CartServiceImpl（核心修复）
+
+**文件**：[backend/src/main/java/com/example/demo/service/impl/CartServiceImpl.java](backend/src/main/java/com/example/demo/service/impl/CartServiceImpl.java#L40-L162)
+
+**修复内容 1 - 删除直接扣减总库存的错误代码**：
+删除 `checkout` 方法中直接修改 `product.stock` 的代码（原第 160-162 行）：
+```java
+// 修复前 - 错误代码
+Product product = productMapper.selectById(item.getProductId());
+product.setStock(product.getStock() - item.getQuantity());
+productMapper.updateById(product);
+
+// 修复后 - 已删除，库存预占逻辑移至 createOrder 方法中的 stockReservationService.createReservations()
+```
+
+**修复内容 2 - 库存校验改为使用可用库存**：
+`addToCart()`、`updateQuantity()`、`checkout()` 三个方法中的库存校验，都改为使用**可用库存**（`stock - reserved_stock`）：
+```java
+// 修复前
+if (product.getStock() < quantity) {
+    throw new IllegalArgumentException("库存不足");
+}
+
+// 修复后
+int availableStock = product.getStock() - (product.getReservedStock() == null ? 0 : product.getReservedStock());
+if (availableStock < quantity) {
+    throw new IllegalArgumentException("库存不足，可用库存: " + availableStock);
+}
+```
+
+**关键点**：
+- 下单时的库存预占逻辑已经在 `OrderServiceImpl.createOrder()` 中通过 `stockReservationService.createReservations()` 正确实现，使用数据库行锁（`UPDATE ... WHERE`）保证并发安全
+- 确认收货时的正式扣减逻辑也已经在 `OrderServiceImpl.updateOrderStatus()` 中通过 `stockReservationService.deductStock()` 正确实现
+- `CartServiceImpl.checkout()` 只需校验库存，不需要也不应该直接操作库存
+
+#### 2. 后端修复 - CartItemDTO
+
+**文件**：[backend/src/main/java/com/example/demo/dto/CartItemDTO.java](backend/src/main/java/com/example/demo/dto/CartItemDTO.java#L24-L28)
+
+**修复内容**：新增 `productReservedStock` 字段：
+```java
+private Integer productStock;
+private Integer productReservedStock;  // 新增
+private String productCategory;
+```
+
+#### 3. 后端修复 - CartMapper.xml
+
+**文件**：[backend/src/main/resources/mapper/CartMapper.xml](backend/src/main/resources/mapper/CartMapper.xml#L5-L40)
+
+**修复内容 1 - resultMap 中增加字段映射**：
+```xml
+<result property="productStock" column="product_stock"/>
+<result property="productReservedStock" column="product_reserved_stock"/>  <!-- 新增 -->
+<result property="productCategory" column="product_category"/>
+```
+
+**修复内容 2 - 两个 SELECT 语句中增加字段查询**：
+```xml
+<!-- 修复前 -->
+SELECT c.id, ..., p.stock AS product_stock, p.category AS product_category
+
+<!-- 修复后 -->
+SELECT c.id, ..., p.stock AS product_stock, 
+       p.reserved_stock AS product_reserved_stock, p.category AS product_category
+```
+
+#### 4. 前端修复 - CartView.vue
+
+**文件**：[frontend/src/views/CartView.vue](frontend/src/views/CartView.vue)
+
+**修复内容 1 - 更新演示特性标签**：
+```vue
+<!-- 修复前 -->
+<el-tag size="small" type="info" class="ml-8">自动扣减库存</el-tag>
+
+<!-- 修复后 -->
+<el-tag size="small" type="success" class="ml-8">下单预占</el-tag>
+<el-tag size="small" type="warning" class="ml-8">收货扣减</el-tag>
+<el-tag size="small" type="info" class="ml-8">防止超卖</el-tag>
+```
+
+**修复内容 2 - 数量选择器和库存提示使用可用库存**：
+```vue
+<!-- 修复前 -->
+<el-input-number
+  v-model="item.quantity"
+  :min="1"
+  :max="item.productStock"
+  ...
+/>
+<el-button ... :disabled="item.quantity >= item.productStock" ... />
+<span class="stock-tip">库存: {{ item.productStock }}</span>
+
+<!-- 修复后 -->
+<el-input-number
+  v-model="item.quantity"
+  :min="1"
+  :max="getAvailableStock(item)"
+  ...
+/>
+<el-button ... :disabled="item.quantity >= getAvailableStock(item)" ... />
+<span class="stock-tip">
+  可用: {{ getAvailableStock(item) }}
+  <span v-if="(item.productReservedStock || 0) > 0" class="reserved-tip">
+    (预占: {{ item.productReservedStock || 0 }})
+  </span>
+</span>
+```
+
+**修复内容 3 - 新增计算可用库存的方法**：
+```javascript
+const getAvailableStock = (item) => {
+  const total = item.productStock || 0
+  const reserved = item.productReservedStock || 0
+  return Math.max(0, total - reserved)
+}
+```
+
+**修复内容 4 - 新增预占库存提示样式**：
+```css
+.stock-tip {
+  color: #67c23a;  /* 从灰色改为绿色 */
+}
+.reserved-tip {
+  color: #e6a23c;  /* 橙色 */
+  margin-left: 4px;
+}
+```
+
+#### 5. 库存流转机制确认（无需修改，逻辑正确）
+
+**正确的库存流转流程**：
+```
+1. 下单 → createReservations() 
+   → reserved_stock += 数量 （只预占，stock 不变）
+
+2. 取消订单/超时 → releaseReservations()
+   → reserved_stock -= 数量 （释放预占，stock 不变）
+
+3. 确认收货 → deductStock()
+   → stock -= 数量 （正式扣减总库存）
+   → reserved_stock -= 数量 （同时减少预占）
+```
+
+**修复验证**：
+1. 重启后端和前端服务
+2. 查看数据库中 `product` 表的某商品，记录初始 `stock` 和 `reserved_stock`（应为 0）
+3. 进入商品页面，确认显示"总库存"、"可用库存"、"预占库存"三列，可用库存 = 总库存
+4. 进入购物车页面，添加该商品到购物车
+5. 确认购物车中商品显示"可用: X"，如果有预占还会显示"(预占: Y)"
+6. **下单前**，记录商品的 `stock` 值
+7. 提交订单，创建成功后立即查询商品表
+8. **验证**：`stock` 值**不变**（正确！），`reserved_stock` 增加了对应数量
+9. 进入"库存预占管理"页面，确认有一条状态为"预占中"的记录
+10. 进入订单详情页，确认"库存预占记录"区域显示了预占信息
+11. **取消订单**，再次查询商品表
+12. **验证**：`reserved_stock` 恢复为 0，`stock` 仍不变（正确！）
+13. 预占记录状态变为"已释放"，释放原因为"订单已取消"
+14. 重新下单，然后将订单状态推进到"已完成"（模拟确认收货）
+15. **验证**：`stock` 扣减了对应数量，`reserved_stock` 恢复为 0（正确！）
+16. 预占记录状态变为"已扣减"
+17. 测试高并发场景（可选）：多个用户同时下单同一商品，确认不会出现超卖
+18. 执行 `mvn compile` 确认后端编译成功，无任何错误
+19. 前端浏览器控制台无 JavaScript 错误
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题
