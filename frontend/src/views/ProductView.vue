@@ -143,7 +143,7 @@
     </el-dialog>
 
     <!-- 查看评价弹窗 -->
-    <el-dialog v-model="reviewDialogVisible" :title="`「${reviewProductName}」的评价" width="700px" top="5vh">
+    <el-dialog v-model="reviewDialogVisible" :title="`「${reviewProductName}」的评价`" width="700px" top="5vh">
       <div v-if="reviewStats" class="review-stats">
         <div class="stats-overview">
           <div class="avg-rating">

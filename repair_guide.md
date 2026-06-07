@@ -156,6 +156,48 @@ import { getReviewPage, getReviewStats } from '../api/review'
 
 ---
 
+### 修复 #3：商品页面查看评价弹窗模板语法错误
+
+**问题描述**：商品页面"查看评价"弹窗的标题属性中存在未闭合的模板表达式语法错误，会导致页面渲染失败。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+- 第146行 `:title` 属性中的模板字符串（反引号）缺少结尾的反引号
+- 原代码：`:title="\`「${reviewProductName}」的评价"` （缺少结尾的 `` ` ``）
+
+**影响范围**：商品管理模块 - 查看评价弹窗功能
+
+**修复方案**：
+
+#### 1. 前端修复
+**文件**：[frontend/src/views/ProductView.vue](frontend/src/views/ProductView.vue#L146-L146)
+
+**修复内容**：
+
+在模板字符串末尾添加缺失的反引号：
+```vue
+<!-- 修复前 -->
+<el-dialog v-model="reviewDialogVisible" :title="`「${reviewProductName}」的评价" width="700px" top="5vh">
+
+<!-- 修复后 -->
+<el-dialog v-model="reviewDialogVisible" :title="`「${reviewProductName}」的评价`" width="700px" top="5vh">
+```
+
+**关键点**：
+- JavaScript 模板字符串必须使用成对的反引号（`` ` ``）包裹
+- 在 Vue 模板的属性绑定中使用模板字符串时，同样需要保证语法正确
+- 缺少闭合反引号会导致 Vue 模板解析失败，整个组件无法正常渲染
+
+**修复验证**：
+1. 登录系统，进入"商品管理"页面
+2. 点击任意商品的"查看评价"按钮
+3. 确认弹窗正常打开，标题显示为「商品名称」的评价格式
+4. 确认弹窗内的评价统计和列表正常显示
+5. 浏览器控制台无 JavaScript 语法错误
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题
