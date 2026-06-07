@@ -96,6 +96,19 @@
               <span class="amount">¥{{ Number(row.subtotal).toFixed(2) }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="评价" width="120" align="center" v-if="order.status === 3">
+            <template #default="{ row }">
+              <el-button
+                v-if="!reviewedItems[row.id]"
+                type="primary"
+                size="small"
+                link
+                @click="openReviewDialog(row)">
+                去评价
+              </el-button>
+              <el-tag v-else type="success" size="small">已评价</el-tag>
+            </template>
+          </el-table-column>
         </el-table>
 
         <div class="total-bar">
@@ -123,27 +136,110 @@ LEFT JOIN order_item oi ON oi.order_id  = o.id
 LEFT JOIN product p     ON oi.product_id = p.id
 WHERE o.id = #{id}</pre>
       </el-card>
+
+      <el-dialog v-model="reviewDialogVisible" title="提交评价" width="500px">
+        <el-form :model="reviewForm" ref="reviewFormRef" label-width="80px">
+          <el-form-item label="商品名称">
+            <span class="form-text">{{ reviewForm.productName }}</span>
+          </el-form-item>
+          <el-form-item label="评分" prop="rating" :rules="[{ required: true, message: '请选择评分' }]">
+            <el-rate v-model="reviewForm.rating" :max="5" :show-text="true" :texts="ratingTexts" />
+          </el-form-item>
+          <el-form-item label="评价内容" prop="content" :rules="[{ max: 500, message: '评价内容不能超过500字' }]">
+            <el-input v-model="reviewForm.content" type="textarea" :rows="4" placeholder="分享您的使用体验，帮助其他用户做出选择~" maxlength="500" show-word-limit />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="reviewDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleSubmitReview" :loading="reviewSubmitting">提交评价</el-button>
+        </template>
+      </el-dialog>
     </template>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { getOrderDetail } from '../api/order'
+import { submitReview, getPendingReviews } from '../api/review'
 
 const route = useRoute()
 const loading = ref(true)
 const order = ref(null)
+const reviewDialogVisible = ref(false)
+const reviewSubmitting = ref(false)
+const reviewFormRef = ref()
+const reviewedItems = ref({})
+
+const ratingTexts = ['非常差', '差', '一般', '好', '非常好']
+
+const reviewForm = reactive({
+  orderItemId: null,
+  productName: '',
+  rating: null,
+  content: ''
+})
 
 const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger'][s] || ''
 const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 19) : '-'
+
+const loadReviewedItems = async () => {
+  try {
+    const res = await getPendingReviews()
+    const pendingItemIds = new Set(res.data.map(item => item.orderItemId))
+    const reviewed = {}
+    if (order.value) {
+      order.value.items.forEach(item => {
+        if (!pendingItemIds.has(item.id)) {
+          reviewed[item.id] = true
+        }
+      })
+    }
+    reviewedItems.value = reviewed
+  } catch (e) {}
+}
+
+const openReviewDialog = (row) => {
+  Object.assign(reviewForm, {
+    orderItemId: row.id,
+    productName: row.productName,
+    rating: null,
+    content: ''
+  })
+  reviewDialogVisible.value = true
+}
+
+const handleSubmitReview = async () => {
+  await reviewFormRef.value.validate()
+  if (!reviewForm.rating || reviewForm.rating < 1 || reviewForm.rating > 5) {
+    ElMessage.error('请选择1-5星评分')
+    return
+  }
+  reviewSubmitting.value = true
+  try {
+    await submitReview({
+      orderItemId: reviewForm.orderItemId,
+      rating: reviewForm.rating,
+      content: reviewForm.content
+    })
+    ElMessage.success('评价提交成功！')
+    reviewedItems.value[reviewForm.orderItemId] = true
+    reviewDialogVisible.value = false
+  } finally {
+    reviewSubmitting.value = false
+  }
+}
 
 onMounted(async () => {
   try {
     const res = await getOrderDetail(route.params.id)
     order.value = res.data
+    if (order.value.status === 3) {
+      await loadReviewedItems()
+    }
   } finally {
     loading.value = false
   }
@@ -174,4 +270,5 @@ onMounted(async () => {
   white-space: pre-wrap;
 }
 .loading-area { padding: 24px; }
+.form-text { color: #303133; font-weight: 500; }
 </style>

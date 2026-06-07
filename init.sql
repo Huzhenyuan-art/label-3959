@@ -79,3 +79,19 @@ CREATE TABLE IF NOT EXISTS `cart` (
   UNIQUE KEY `uk_user_product` (`user_id`, `product_id`),
   INDEX `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `product_review` (
+  `id`             BIGINT        NOT NULL AUTO_INCREMENT,
+  `user_id`        BIGINT        NOT NULL,
+  `product_id`     BIGINT        NOT NULL,
+  `order_item_id`  BIGINT        NOT NULL,
+  `order_id`       BIGINT        NOT NULL,
+  `rating`         TINYINT       NOT NULL,
+  `content`        VARCHAR(500)  DEFAULT NULL,
+  `created_time`   DATETIME      DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_order_item` (`order_item_id`),
+  INDEX `idx_product_id` (`product_id`),
+  INDEX `idx_user_id` (`user_id`),
+  INDEX `idx_created_time` (`created_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
