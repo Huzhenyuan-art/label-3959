@@ -197,6 +197,7 @@ const statusOptions = [
 ]
 
 const statusTagType = (s) => ['warning', 'success', 'danger', 'info'][s] || ''
+const orderStatusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger', 'warning'][s] || ''
 
 const loadData = async () => {
   loading.value = true

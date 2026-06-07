@@ -21,5 +21,7 @@ public interface NotificationService extends IService<Notification> {
 
     void sendRefundResultNotification(Long userId, Long orderId, boolean success, String reason);
 
+    void sendRefundApplyNotification(Long userId, Long orderId, String refundNo);
+
     void sendStockWarningNotification(Long productId, String productName, Integer stock);
 }

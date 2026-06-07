@@ -1256,6 +1256,369 @@ const getAvailableStock = (item) => {
 
 ---
 
+### 修复 #14：用户申请退款后订单状态未变更、无通知，管理员页面缺少审核入口
+
+**问题描述**：
+1. 用户申请退款之后，订单状态没有任何变更，用户无法感知申请是否提交成功
+2. 用户申请退款后没有收到任何通知，不知道申请状态
+3. 管理员页面缺少退款审核入口，无法处理退款申请
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+1. **订单状态未变更**：退款申请提交后，订单状态保持原样（如"已支付"、"已发货"等），没有过渡状态标识退款正在处理中。用户查看订单时看不到任何退款相关的状态变化
+2. **无申请提交通知**：只实现了审核结果通知（`sendRefundResultNotification`），但缺少申请提交成功的通知，用户提交申请后没有即时反馈
+3. **管理员审核入口缺失**：侧边栏菜单中缺少"退款管理"菜单项，管理员无法进入退款审核页面
+4. **缺少状态回滚机制**：如果退款申请被拒绝或用户取消申请，订单状态无法恢复到申请前的原始状态
+
+**影响范围**：退款管理模块全流程（用户申请、状态展示、通知、管理员审核）
+
+**修复方案**：
+
+#### 1. 后端修复 - 新增退款中状态和原始状态字段
+
+**文件 1**：[backend/src/main/java/com/example/demo/entity/Order.java](backend/src/main/java/com/example/demo/entity/Order.java#L24-L25)
+
+新增订单状态 5 = "退款中"：
+```java
+// 修复前
+/** 订单状态: 0-待支付 1-已支付 2-已发货 3-已完成 4-已取消 */
+private Integer status;
+
+// 修复后
+/** 订单状态: 0-待支付 1-已支付 2-已发货 3-已完成 4-已取消 5-退款中 */
+private Integer status;
+```
+
+**文件 2**：[backend/src/main/java/com/example/demo/entity/RefundOrder.java](backend/src/main/java/com/example/demo/entity/RefundOrder.java#L32-L34)
+
+新增 `originalOrderStatus` 字段，用于记录申请退款前的订单原始状态：
+```java
+private Integer status;
+
+private Integer originalOrderStatus;  // 新增
+
+private String auditRemark;
+```
+
+**文件 3**：[init.sql](init.sql#L203-L205)
+
+数据库表新增 `original_order_status` 字段：
+```sql
+`status`                TINYINT        NOT NULL DEFAULT 0,
+`original_order_status` TINYINT        DEFAULT NULL,  -- 新增
+`audit_remark`          VARCHAR(500)   DEFAULT NULL,
+```
+
+#### 2. 后端修复 - 新增通知类型和通知方法
+
+**文件 1**：[backend/src/main/java/com/example/demo/enums/NotificationTypeEnum.java](backend/src/main/java/com/example/demo/enums/NotificationTypeEnum.java#L8-L12)
+
+新增退款申请提交通知类型：
+```java
+ORDER_STATUS_CHANGE(1, "订单状态变更"),
+REFUND_RESULT(2, "退款处理结果"),
+STOCK_WARNING(3, "库存预警"),
+SYSTEM_NOTICE(4, "系统通知"),
+REFUND_APPLY(5, "退款申请提交");  // 新增
+```
+
+**文件 2**：[backend/src/main/java/com/example/demo/service/NotificationService.java](backend/src/main/java/com/example/demo/service/NotificationService.java#L24-L24)
+
+新增通知方法声明：
+```java
+void sendRefundResultNotification(Long userId, Long orderId, boolean success, String reason);
+
+void sendRefundApplyNotification(Long userId, Long orderId, String refundNo);  // 新增
+
+void sendStockWarningNotification(Long productId, String productName, Integer stock);
+```
+
+**文件 3**：[backend/src/main/java/com/example/demo/service/impl/NotificationServiceImpl.java](backend/src/main/java/com/example/demo/service/impl/NotificationServiceImpl.java#L118-L144)
+
+实现通知方法并更新订单状态标签：
+```java
+@Async
+@Override
+public void sendRefundApplyNotification(Long userId, Long orderId, String refundNo) {
+    String title = "退款申请已提交";
+    String content = String.format("您的订单 #%d 退款申请已提交，退款单号：%s，请等待管理员审核。", orderId, refundNo);
+
+    SendNotificationDTO dto = new SendNotificationDTO();
+    dto.setUserId(userId);
+    dto.setType(NotificationTypeEnum.REFUND_APPLY.getCode());
+    dto.setTitle(title);
+    dto.setContent(content);
+    dto.setBizId(orderId);
+    dto.setBizType("REFUND");
+    sendNotification(dto);
+}
+
+private String getOrderStatusLabel(Integer status) {
+    return switch (status) {
+        case 0 -> "待支付";
+        case 1 -> "已支付";
+        case 2 -> "已发货";
+        case 3 -> "已完成";
+        case 4 -> "已取消";
+        case 5 -> "退款中";  // 新增
+        default -> "未知状态";
+    };
+}
+```
+
+#### 3. 后端修复 - 更新退款业务逻辑
+
+**文件**：[backend/src/main/java/com/example/demo/service/impl/RefundOrderServiceImpl.java](backend/src/main/java/com/example/demo/service/impl/RefundOrderServiceImpl.java)
+
+**修复内容 1 - applyRefund 方法**（第 88-111 行）：
+- 保存原始订单状态到 `originalOrderStatus` 字段
+- 将订单状态更新为 5（退款中）
+- 发送订单状态变更通知
+- 发送退款申请提交通知
+
+```java
+// 修复前
+RefundOrder refundOrder = new RefundOrder();
+refundOrder.setOrderId(dto.getOrderId());
+refundOrder.setUserId(currentUserId);
+refundOrder.setRefundNo(generateRefundNo());
+refundOrder.setStatus(RefundStatusEnum.PENDING.getCode());
+save(refundOrder);
+// 没有状态变更和通知
+
+// 修复后
+RefundOrder refundOrder = new RefundOrder();
+refundOrder.setOrderId(dto.getOrderId());
+refundOrder.setUserId(currentUserId);
+String refundNo = generateRefundNo();
+refundOrder.setRefundNo(refundNo);
+refundOrder.setStatus(RefundStatusEnum.PENDING.getCode());
+refundOrder.setOriginalOrderStatus(order.getStatus());  // 保存原始状态
+save(refundOrder);
+
+// 更新订单状态为"退款中"
+Integer oldOrderStatus = order.getStatus();
+order.setStatus(5);
+orderMapper.updateById(order);
+notificationService.sendOrderStatusNotification(currentUserId, dto.getOrderId(), oldOrderStatus, 5);
+
+// 发送退款申请提交通知
+notificationService.sendRefundApplyNotification(currentUserId, dto.getOrderId(), refundNo);
+```
+
+**修复内容 2 - auditRefund 拒绝分支**（第 155-168 行）：
+- 拒绝退款时，将订单状态恢复为原始状态
+- 发送订单状态变更通知
+
+```java
+// 修复前
+} else {
+    refundOrder.setStatus(RefundStatusEnum.REJECTED.getCode());
+    log.info("退款审核拒绝...");
+}
+
+// 修复后
+} else {
+    refundOrder.setStatus(RefundStatusEnum.REJECTED.getCode());
+
+    // 恢复订单原始状态
+    Integer recoverStatus = refundOrder.getOriginalOrderStatus();
+    if (recoverStatus != null) {
+        Integer oldStatus = order.getStatus();
+        order.setStatus(recoverStatus);
+        orderMapper.updateById(order);
+        notificationService.sendOrderStatusNotification(order.getUserId(), order.getId(), oldStatus, recoverStatus);
+    }
+
+    log.info("退款审核拒绝...");
+}
+```
+
+**修复内容 3 - cancelRefund 方法**（第 196-208 行）：
+- 用户取消退款申请时，将订单状态恢复为原始状态
+- 发送订单状态变更通知
+
+```java
+// 修复前
+refundOrder.setStatus(RefundStatusEnum.CANCELLED.getCode());
+updateById(refundOrder);
+log.info("用户取消退款申请...");
+
+// 修复后
+refundOrder.setStatus(RefundStatusEnum.CANCELLED.getCode());
+updateById(refundOrder);
+
+// 恢复订单原始状态
+Order order = orderMapper.selectById(refundOrder.getOrderId());
+if (order != null && refundOrder.getOriginalOrderStatus() != null) {
+    Integer oldStatus = order.getStatus();
+    order.setStatus(refundOrder.getOriginalOrderStatus());
+    orderMapper.updateById(order);
+    notificationService.sendOrderStatusNotification(currentUserId, order.getId(), oldStatus, refundOrder.getOriginalOrderStatus());
+}
+
+log.info("用户取消退款申请...");
+```
+
+#### 4. 后端修复 - 更新 Mapper XML 中的状态映射
+
+**文件 1**：[backend/src/main/resources/mapper/OrderMapper.xml](backend/src/main/resources/mapper/OrderMapper.xml)
+
+两处 CASE 语句都添加状态 5 的映射（共 2 处修改）：
+```xml
+CASE o.status
+    WHEN 0 THEN '待支付'
+    WHEN 1 THEN '已支付'
+    WHEN 2 THEN '已发货'
+    WHEN 3 THEN '已完成'
+    WHEN 4 THEN '已取消'
+    WHEN 5 THEN '退款中'  -- 新增
+END AS status_label,
+```
+
+**文件 2**：[backend/src/main/resources/mapper/RefundOrderMapper.xml](backend/src/main/resources/mapper/RefundOrderMapper.xml)
+
+两处 CASE 语句都添加状态 5 的映射（共 2 处修改）：
+```xml
+CASE o.status
+    WHEN 0 THEN '待支付'
+    WHEN 1 THEN '已支付'
+    WHEN 2 THEN '已发货'
+    WHEN 3 THEN '已完成'
+    WHEN 4 THEN '已取消'
+    WHEN 5 THEN '退款中'  -- 新增
+END AS order_status_label
+```
+
+#### 5. 后端修复 - 安全配置确认
+
+**文件**：[backend/src/main/java/com/example/demo/config/SecurityConfig.java](backend/src/main/java/com/example/demo/config/SecurityConfig.java#L55-L56)
+
+权限配置已正确设置（之前已添加）：
+```java
+.requestMatchers("/api/refunds/audit").hasRole(RoleEnum.ADMIN.getCode())
+.requestMatchers("/api/refunds/**").authenticated()
+```
+
+#### 6. 前端修复 - 添加侧边栏退款管理入口
+
+**文件 1**：[frontend/src/App.vue](frontend/src/App.vue#L123-L123)
+
+导入 `RefreshRight` 图标：
+```javascript
+// 修复前
+import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location, Box } from '@element-plus/icons-vue'
+
+// 修复后
+import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location, Box, RefreshRight } from '@element-plus/icons-vue'
+```
+
+**文件 2**：[frontend/src/App.vue](frontend/src/App.vue#L36-L39)
+
+在订单管理和商品评价之间添加退款管理菜单项：
+```vue
+<el-menu-item index="/orders">
+  <el-icon><List /></el-icon>
+  <span>订单管理</span>
+</el-menu-item>
+<!-- 新增开始 -->
+<el-menu-item index="/refunds">
+  <el-icon><RefreshRight /></el-icon>
+  <span>退款管理</span>
+</el-menu-item>
+<!-- 新增结束 -->
+<el-menu-item index="/reviews">
+```
+
+#### 7. 前端修复 - 更新状态标签映射
+
+所有涉及订单状态显示的页面都添加状态 5 的标签类型（橙色 warning）：
+
+| 文件 | 修复内容 |
+|------|----------|
+| [OrderView.vue](frontend/src/views/OrderView.vue#L171-L180) | statusOptions 添加 { label: '退款中', value: 5 }<br>statusTagType 数组添加第 6 个元素 'warning' |
+| [OrderDetailView.vue](frontend/src/views/OrderDetailView.vue#L302-L302) | statusTagType 数组添加第 6 个元素 'warning' |
+| [RefundApplyView.vue](frontend/src/views/RefundApplyView.vue#L138-L138) | statusTagType 数组添加第 6 个元素 'warning' |
+| [RefundView.vue](frontend/src/views/RefundView.vue#L199-L200) | 新增 orderStatusTagType 函数，包含状态 5 |
+| [RefundDetailView.vue](frontend/src/views/RefundDetailView.vue#L195-L196) | orderStatusTagType 数组添加第 6 个元素 'warning' |
+
+**修改示例**：
+```javascript
+// 修复前
+const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger'][s] || ''
+
+// 修复后
+const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger', 'warning'][s] || ''
+// 索引:                          0          1          2        3           4          5
+// 对应状态:                     待支付      已支付      已发货    已完成       已取消     退款中
+```
+
+#### 8. 完整的退款状态流转机制
+
+```
+用户申请退款 → 订单状态: 原状态 → 退款中(5)
+            → 发送: 订单状态变更通知 + 退款申请提交通知
+            → 保存: originalOrderStatus = 原状态
+
+┌─ 管理员审核通过 → 订单状态: 退款中(5) → 已取消(4)
+│                   → 发送: 订单状态变更通知 + 退款成功通知
+│                   → 操作: 回滚库存 + 释放库存预占
+│
+├─ 管理员审核拒绝 → 订单状态: 退款中(5) → originalOrderStatus(原状态)
+│                   → 发送: 订单状态变更通知 + 退款拒绝通知
+│
+└─ 用户取消申请 → 订单状态: 退款中(5) → originalOrderStatus(原状态)
+                    → 发送: 订单状态变更通知
+```
+
+**关键点**：
+- 申请退款后订单立即进入"退款中"状态，用户有明确感知
+- 保存原始订单状态，确保拒绝/取消时可以准确恢复
+- 三重通知保障：申请提交通知 + 每次状态变更通知 + 最终结果通知
+- 状态回滚机制确保数据一致性
+- 管理员通过侧边栏"退款管理"入口处理审核
+- 前后端所有状态映射保持一致，避免显示混乱
+
+**修复验证**：
+1. 执行 `mvn compile` 确认后端编译成功
+2. 启动后端和前端服务
+3. **测试用户申请退款**：
+   - 登录普通用户账号，进入订单详情页
+   - 点击"申请退款"，填写信息后提交
+   - 确认订单状态变为"退款中"（橙色标签）
+   - 进入消息中心，确认收到两条通知：
+     1. 「订单状态变更」通知：原状态 → 退款中
+     2. 「退款申请提交」通知：包含退款单号
+4. **测试管理员审核入口**：
+   - 登录管理员账号，确认左侧侧边栏显示"退款管理"菜单项
+   - 点击进入退款管理页面，确认显示待审核的退款申请
+   - 确认操作列有"审核"按钮
+5. **测试审核通过**：
+   - 管理员点击"审核"，选择"通过"并提交
+   - 确认退款单状态变为"审核通过"
+   - 确认关联订单状态变为"已取消"
+   - 确认商品库存已回滚（库存数量增加）
+   - 登录用户账号，确认收到两条通知：
+     1. 「订单状态变更」通知：退款中 → 已取消
+     2. 「退款处理结果」通知：审核通过
+6. **测试审核拒绝**（可选，换一个订单重复步骤 3）：
+   - 管理员审核时选择"拒绝"，填写拒绝原因
+   - 确认退款单状态变为"审核拒绝"
+   - 确认关联订单状态**恢复为原始状态**（如"已支付"）
+   - 登录用户账号，确认收到两条通知：
+     1. 「订单状态变更」通知：退款中 → 原状态
+     2. 「退款处理结果」通知：审核拒绝 + 拒绝原因
+7. **测试用户取消申请**（可选，换一个订单重复步骤 3 但不审核）：
+   - 用户进入退款详情页，点击"取消申请"
+   - 确认退款单状态变为"已取消"
+   - 确认关联订单状态**恢复为原始状态**
+   - 确认收到「订单状态变更」通知
+8. 确认所有页面的订单状态显示正确，状态标签颜色正确
+9. 确认 GetDiagnostics 无前端代码错误
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题

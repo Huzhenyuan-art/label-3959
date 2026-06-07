@@ -75,6 +75,7 @@
                 WHEN 2 THEN '已发货'
                 WHEN 3 THEN '已完成'
                 WHEN 4 THEN '已取消'
+                WHEN 5 THEN '退款中'
             END          AS status_label,
             o.remark,
             o.coupon_id,

@@ -135,7 +135,7 @@ const form = reactive({
   proofImages: ''
 })
 
-const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger'][s] || ''
+const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger', 'warning'][s] || ''
 
 const validateAmount = (rule, value, callback) => {
   if (value <= 0) {

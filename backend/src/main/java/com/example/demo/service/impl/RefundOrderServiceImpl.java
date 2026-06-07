@@ -88,17 +88,26 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
         RefundOrder refundOrder = new RefundOrder();
         refundOrder.setOrderId(dto.getOrderId());
         refundOrder.setUserId(currentUserId);
-        refundOrder.setRefundNo(generateRefundNo());
+        String refundNo = generateRefundNo();
+        refundOrder.setRefundNo(refundNo);
         refundOrder.setRefundAmount(dto.getRefundAmount());
         refundOrder.setRefundType(dto.getRefundType());
         refundOrder.setRefundReason(dto.getRefundReason());
         refundOrder.setRefundDesc(dto.getRefundDesc());
         refundOrder.setProofImages(dto.getProofImages());
         refundOrder.setStatus(RefundStatusEnum.PENDING.getCode());
+        refundOrder.setOriginalOrderStatus(order.getStatus());
         save(refundOrder);
 
-        log.info("用户申请退款成功: refundId={}, orderId={}, userId={}, amount={}",
-                refundOrder.getId(), dto.getOrderId(), currentUserId, dto.getRefundAmount());
+        Integer oldOrderStatus = order.getStatus();
+        order.setStatus(5);
+        orderMapper.updateById(order);
+        notificationService.sendOrderStatusNotification(currentUserId, dto.getOrderId(), oldOrderStatus, 5);
+
+        notificationService.sendRefundApplyNotification(currentUserId, dto.getOrderId(), refundNo);
+
+        log.info("用户申请退款成功: refundId={}, orderId={}, userId={}, amount={}, refundNo={}",
+                refundOrder.getId(), dto.getOrderId(), currentUserId, dto.getRefundAmount(), refundNo);
 
         return refundOrder;
     }
@@ -145,6 +154,15 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
                     dto.getRefundId(), refundOrder.getOrderId(), refundOrder.getUserId());
         } else {
             refundOrder.setStatus(RefundStatusEnum.REJECTED.getCode());
+
+            Integer recoverStatus = refundOrder.getOriginalOrderStatus();
+            if (recoverStatus != null) {
+                Integer oldStatus = order.getStatus();
+                order.setStatus(recoverStatus);
+                orderMapper.updateById(order);
+                notificationService.sendOrderStatusNotification(order.getUserId(), order.getId(), oldStatus, recoverStatus);
+            }
+
             log.info("退款审核拒绝: refundId={}, orderId={}, userId={}, reason={}",
                     dto.getRefundId(), refundOrder.getOrderId(), refundOrder.getUserId(), dto.getAuditRemark());
         }
@@ -177,6 +195,14 @@ public class RefundOrderServiceImpl extends ServiceImpl<RefundOrderMapper, Refun
 
         refundOrder.setStatus(RefundStatusEnum.CANCELLED.getCode());
         updateById(refundOrder);
+
+        Order order = orderMapper.selectById(refundOrder.getOrderId());
+        if (order != null && refundOrder.getOriginalOrderStatus() != null) {
+            Integer oldStatus = order.getStatus();
+            order.setStatus(refundOrder.getOriginalOrderStatus());
+            orderMapper.updateById(order);
+            notificationService.sendOrderStatusNotification(currentUserId, order.getId(), oldStatus, refundOrder.getOriginalOrderStatus());
+        }
 
         log.info("用户取消退款申请: refundId={}, orderId={}", id, refundOrder.getOrderId());
     }

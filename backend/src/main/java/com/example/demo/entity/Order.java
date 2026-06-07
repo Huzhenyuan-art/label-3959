@@ -21,7 +21,7 @@ public class Order {
 
     private BigDecimal totalAmount;
 
-    /** 订单状态: 0-待支付 1-已支付 2-已发货 3-已完成 4-已取消 */
+    /** 订单状态: 0-待支付 1-已支付 2-已发货 3-已完成 4-已取消 5-退款中 */
     private Integer status;
 
     private String remark;

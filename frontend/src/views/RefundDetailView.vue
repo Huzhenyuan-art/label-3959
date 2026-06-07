@@ -193,7 +193,7 @@ const auditForm = reactive({
 })
 
 const statusTagType = (s) => ['warning', 'success', 'danger', 'info'][s] || ''
-const orderStatusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger'][s] || ''
+const orderStatusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger', 'warning'][s] || ''
 
 const loadDetail = async () => {
   loading.value = true

@@ -173,10 +173,11 @@ const statusOptions = [
   { label: '已支付', value: 1 },
   { label: '已发货', value: 2 },
   { label: '已完成', value: 3 },
-  { label: '已取消', value: 4 }
+  { label: '已取消', value: 4 },
+  { label: '退款中', value: 5 }
 ]
 
-const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger'][s] || ''
+const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger', 'warning'][s] || ''
 
 const calcTotal = computed(() =>
   createForm.items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0).toFixed(2)

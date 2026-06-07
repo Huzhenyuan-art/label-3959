@@ -115,6 +115,22 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
         sendNotification(dto);
     }
 
+    @Async
+    @Override
+    public void sendRefundApplyNotification(Long userId, Long orderId, String refundNo) {
+        String title = "退款申请已提交";
+        String content = String.format("您的订单 #%d 退款申请已提交，退款单号：%s，请等待管理员审核。", orderId, refundNo);
+
+        SendNotificationDTO dto = new SendNotificationDTO();
+        dto.setUserId(userId);
+        dto.setType(NotificationTypeEnum.REFUND_APPLY.getCode());
+        dto.setTitle(title);
+        dto.setContent(content);
+        dto.setBizId(orderId);
+        dto.setBizType("REFUND");
+        sendNotification(dto);
+    }
+
     private String getOrderStatusLabel(Integer status) {
         return switch (status) {
             case 0 -> "待支付";
@@ -122,6 +138,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
             case 2 -> "已发货";
             case 3 -> "已完成";
             case 4 -> "已取消";
+            case 5 -> "退款中";
             default -> "未知状态";
         };
     }

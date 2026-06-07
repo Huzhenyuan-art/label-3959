@@ -33,6 +33,10 @@
           <el-icon><List /></el-icon>
           <span>订单管理</span>
         </el-menu-item>
+        <el-menu-item index="/refunds">
+          <el-icon><RefreshRight /></el-icon>
+          <span>退款管理</span>
+        </el-menu-item>
         <el-menu-item index="/reviews">
           <el-icon><ChatDotRound /></el-icon>
           <span>商品评价</span>
@@ -116,7 +120,7 @@
 import { useRouter } from 'vue-router'
 import { onMounted, onUnmounted, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location, Box } from '@element-plus/icons-vue'
+import { Bell, ShoppingCart, ChatDotRound, Present, Wallet, Location, Box, RefreshRight } from '@element-plus/icons-vue'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notification'
 

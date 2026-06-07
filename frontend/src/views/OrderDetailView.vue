@@ -299,7 +299,7 @@ const reviewForm = reactive({
   content: ''
 })
 
-const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger'][s] || ''
+const statusTagType = (s) => ['warning', 'primary', 'info', 'success', 'danger', 'warning'][s] || ''
 const reservationTagType = (s) => ['warning', 'info', 'success'][s] || ''
 const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 19) : '-'
 

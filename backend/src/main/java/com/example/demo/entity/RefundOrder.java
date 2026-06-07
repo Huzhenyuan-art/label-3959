@@ -31,6 +31,8 @@ public class RefundOrder {
 
     private Integer status;
 
+    private Integer originalOrderStatus;
+
     private String auditRemark;
 
     private Long auditUserId;
