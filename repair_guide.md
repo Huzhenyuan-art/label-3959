@@ -378,6 +378,285 @@ export const getAvailableTemplates = () => {
 
 ---
 
+### 修复 #7：普通用户访问优惠券中心提示权限不足
+
+**问题描述**：普通用户登录后，点击左侧菜单「优惠券中心」时，弹出错误提示「权限不足，无法访问」，无法查看可领取优惠券列表。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+- Spring Security 配置中，`/api/coupons/templates/**` 路径被设置为需要管理员角色（`hasRole('ADMIN')`）
+- 但普通用户访问优惠券中心页面时，需要调用 `/api/coupons/templates/available` 接口获取可领取优惠券列表
+- 该接口路径匹配到了 `/api/coupons/templates/**` 规则，导致普通用户被拒绝访问
+- 管理员相关的模板管理接口（如创建、修改状态等）才需要管理员权限，而查询可领取列表是所有登录用户都应该能访问的
+
+**影响范围**：优惠券模块 - 优惠券中心页面（普通用户无法访问）
+
+**修复方案**：
+
+#### 1. 后端修复
+**文件**：[backend/src/main/java/com/example/demo/config/SecurityConfig.java](backend/src/main/java/com/example/demo/config/SecurityConfig.java#L53-L54)
+
+**修复内容**：
+在 `/api/coupons/templates/**` 规则之前，添加更具体的路径规则 `/api/coupons/templates/available`，设置为只需要登录认证即可访问：
+
+```java
+// 修复前
+.authorizeHttpRequests(auth -> auth
+    .requestMatchers("/api/auth/**").permitAll()
+    .requestMatchers("/api/users/**").hasRole(RoleEnum.ADMIN.getCode())
+    .requestMatchers("/api/coupons/templates/**").hasRole(RoleEnum.ADMIN.getCode())
+    .requestMatchers("/api/coupons/**").authenticated()
+    ...
+)
+
+// 修复后
+.authorizeHttpRequests(auth -> auth
+    .requestMatchers("/api/auth/**").permitAll()
+    .requestMatchers("/api/users/**").hasRole(RoleEnum.ADMIN.getCode())
+    .requestMatchers("/api/coupons/templates/available").authenticated()
+    .requestMatchers("/api/coupons/templates/**").hasRole(RoleEnum.ADMIN.getCode())
+    .requestMatchers("/api/coupons/**").authenticated()
+    ...
+)
+```
+
+**关键点**：
+- Spring Security 的权限规则是按顺序匹配的，更具体的路径必须放在更通用的路径之前
+- `/api/coupons/templates/available` 比 `/api/coupons/templates/**` 更具体，必须放在前面
+- 这样普通用户调用 `/available` 接口时匹配第一条规则，认证通过即可访问
+- 管理员调用其他 `/templates/**` 接口（如 `/page`、`/{id}/status` 等）时匹配第二条规则，需要管理员角色
+- 其他 `/coupons/**` 接口（如领取、查询我的优惠券等）匹配第三条规则，只需要登录认证
+
+**修复验证**：
+1. 启动后端和前端服务
+2. 使用普通用户账号（非管理员）登录系统
+3. 点击左侧菜单「优惠券中心」
+4. 确认页面正常加载，不弹出「权限不足」错误
+5. 确认页面显示可领取优惠券列表
+6. 使用浏览器开发者工具（F12）→ Network 面板
+7. 确认 `/api/coupons/templates/available` 接口返回 200 状态码，不是 403
+8. 使用管理员账号登录系统
+9. 进入「优惠券中心」，确认显示「创建券模板」按钮和模板管理功能
+10. 确认管理员调用 `/api/coupons/templates/page` 接口正常，返回 200 状态码
+
+---
+
+### 修复 #8：购物车结算页面没有优惠券选项
+
+**问题描述**：用户在购物车页面选择商品后点击「结算」按钮，弹出的确认订单弹窗中没有优惠券选择区域，无法在结算时使用已领取的优惠券抵扣金额。
+
+**发现日期**：2026-06-07
+
+**问题根源**：
+- 前端购物车结算弹窗（`CartView.vue`）缺少优惠券选择 UI 组件
+- 前端 API 层缺少根据订单金额查询可用优惠券的方法
+- 后端 `CartController` 的 `CheckoutRequest` 缺少 `userCouponId` 字段
+- 后端 `CartService` 的 `checkout` 方法缺少 `userCouponId` 参数，无法将优惠券传递给订单创建流程
+
+**影响范围**：购物车模块 - 结算功能（无法使用优惠券抵扣）
+
+**修复方案**：
+
+#### 1. 后端修复
+
+**文件 1**：[backend/src/main/java/com/example/demo/controller/CartController.java](backend/src/main/java/com/example/demo/controller/CartController.java#L52-L78)
+
+**修复内容**：
+在 `CheckoutRequest` 中添加 `userCouponId` 字段，并在 `checkout` 方法中传递给 Service：
+
+```java
+@PostMapping("/checkout")
+public Result<Order> checkout(@RequestBody CheckoutRequest req) {
+    return Result.ok(cartService.checkout(req.getCartIds(), req.getRemark(), req.getUserCouponId()));
+}
+
+@Data
+public static class CheckoutRequest {
+    private List<Long> cartIds;
+    private String remark;
+    private Long userCouponId;  // 新增
+}
+```
+
+**文件 2**：[backend/src/main/java/com/example/demo/service/CartService.java](backend/src/main/java/com/example/demo/service/CartService.java#L22-L22)
+
+**修复内容**：
+在 `checkout` 方法签名中添加 `userCouponId` 参数：
+
+```java
+// 修复前
+Order checkout(List<Long> cartIds, String remark);
+
+// 修复后
+Order checkout(List<Long> cartIds, String remark, Long userCouponId);
+```
+
+**文件 3**：[backend/src/main/java/com/example/demo/service/impl/CartServiceImpl.java](backend/src/main/java/com/example/demo/service/impl/CartServiceImpl.java#L126-L173)
+
+**修复内容**：
+更新 `checkout` 方法签名，接收 `userCouponId` 并传递给 `createOrder` 方法：
+
+```java
+// 修复前
+public Order checkout(List<Long> cartIds, String remark) {
+    ...
+    Order createdOrder = orderService.createOrder(order, orderItems, null);
+    ...
+}
+
+// 修复后
+public Order checkout(List<Long> cartIds, String remark, Long userCouponId) {
+    ...
+    Order createdOrder = orderService.createOrder(order, orderItems, userCouponId);
+    ...
+}
+```
+
+#### 2. 前端修复
+
+**文件 1**：[frontend/src/api/cart.js](frontend/src/api/cart.js#L9-L9)
+
+**修复内容**：
+添加根据订单金额查询可用优惠券的 API 方法：
+
+```javascript
+export const getAvailableCouponsForOrder = (orderAmount) => 
+  request.get('/coupons/my/available-for-order', { params: { orderAmount } })
+```
+
+**文件 2**：[frontend/src/views/CartView.vue](frontend/src/views/CartView.vue)
+
+**修复内容**：
+
+1. **导入新增 API 和图标**（第 150-158 行、第 209 行）：
+```javascript
+import { Plus, Minus, Delete, CircleCheck } from '@element-plus/icons-vue'
+import {
+  getMyCart,
+  updateCartQuantity,
+  removeFromCart,
+  batchRemoveCart,
+  checkoutCart,
+  getAvailableCouponsForOrder
+} from '../api/cart'
+```
+
+2. **新增响应式变量**（第 167-169 行）：
+```javascript
+const availableCoupons = ref([])
+const selectedCouponId = ref(null)
+const loadingCoupons = ref(false)
+```
+
+3. **新增计算属性**（第 190-205 行）：
+```javascript
+const selectedCoupon = computed(() => {
+  return availableCoupons.value.find(c => c.id === selectedCouponId.value)
+})
+
+const discountAmount = computed(() => {
+  if (!selectedCoupon.value) return 0
+  if (selectedCoupon.value.couponType === 1) {
+    return Number(selectedCoupon.value.discountAmount) || 0
+  } else {
+    return selectedTotal.value * (1 - Number(selectedCoupon.value.discountRate))
+  }
+})
+
+const finalAmount = computed(() => {
+  return Math.max(0, selectedTotal.value - discountAmount.value)
+})
+```
+
+4. **修改 `handleCheckout` 方法**（第 264-288 行）：
+```javascript
+const handleCheckout = async () => {
+  // ... 原有校验逻辑 ...
+  checkoutRemark.value = ''
+  selectedCouponId.value = null
+  availableCoupons.value = []
+  
+  loadingCoupons.value = true
+  try {
+    const res = await getAvailableCouponsForOrder(selectedTotal.value)
+    availableCoupons.value = res.data
+  } finally {
+    loadingCoupons.value = false
+  }
+  
+  checkoutDialogVisible.value = true
+}
+```
+
+5. **修改 `confirmCheckout` 方法**（第 291-305 行）：
+```javascript
+const confirmCheckout = async () => {
+  checkoutLoading.value = true
+  try {
+    const res = await checkoutCart({
+      cartIds: selectedIds.value,
+      remark: checkoutRemark.value,
+      userCouponId: selectedCouponId.value  // 新增
+    })
+    // ...
+  }
+}
+```
+
+6. **新增 `formatDate` 工具方法**（第 370-373 行）：
+```javascript
+const formatDate = (date) => {
+  if (!date) return ''
+  return new Date(date).toLocaleDateString('zh-CN')
+}
+```
+
+7. **修改结算弹窗模板**（第 116-201 行）：
+   - 弹窗宽度从 500px 改为 560px
+   - 新增优惠券选择区域，包含加载状态、空状态、优惠券列表
+   - 新增价格汇总区域，显示商品总额、优惠券抵扣、实付金额
+   - 优惠券卡片支持点击选中/取消，选中状态有绿色边框和勾选图标
+
+8. **新增优惠券选择区域样式**（第 506-639 行）：
+   - `.coupon-section` - 优惠券区域容器
+   - `.coupon-item` - 优惠券卡片（含选中状态样式）
+   - `.coupon-item-left` - 左侧金额区域
+   - `.coupon-item-right` - 右侧名称和有效期
+   - `.coupon-check` - 选中图标定位
+   - `.price-summary` - 价格汇总区域（黄色背景）
+   - `.price-row` - 每行价格（含折扣行和最终行特殊样式）
+
+**关键点**：
+- 结算弹窗打开时，自动根据当前选中商品总金额查询可用优惠券
+- 只显示满足满减门槛的优惠券（后端已筛选）
+- 优惠券卡片显示类型、金额/折扣、满减条件、名称、有效期
+- 点击优惠券卡片可选中/取消选中，选中时边框变绿并显示勾选图标
+- 价格汇总区域实时计算并显示优惠抵扣金额和实付金额
+- 满减券直接显示减免金额，折扣券实时计算折扣金额
+- 提交订单时将选中的优惠券 ID 传递给后端
+- 后端接收到 `userCouponId` 后传递给 `createOrder` 进行优惠券核销
+
+**修复验证**：
+1. 启动后端和前端服务
+2. 使用普通用户账号登录
+3. 进入「优惠券中心」，领取至少一张优惠券
+4. 进入「购物车」页面，添加商品到购物车并选中
+5. 点击「结算」按钮
+6. 确认弹窗加载完成后，显示「选择优惠券」区域
+7. 确认列出了可用的优惠券（满足满减门槛的）
+8. 点击一张优惠券，确认卡片变为绿色边框并显示勾选图标
+9. 确认价格汇总区域显示「优惠券抵扣：-¥xx」和正确的实付金额
+10. 再次点击已选中的优惠券，确认取消选中，价格汇总恢复原价
+11. 重新选择一张优惠券，点击「提交订单」
+12. 进入订单详情页，确认订单使用了优惠券并显示优惠金额
+13. 进入「我的优惠券」页面，确认该优惠券状态变为「已使用」
+14. 取消该订单，确认优惠券状态恢复为「未使用」
+15. 重复步骤 4-12，不选择优惠券直接提交订单
+16. 确认订单没有使用优惠券，金额为原价
+
+---
+
 ## 修复登记模板（新增修复请复制此模板）
 
 ### 修复 #序号：问题标题

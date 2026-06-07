@@ -125,7 +125,8 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Order checkout(List<Long> cartIds, String remark) {
+@Override
+    public Order checkout(List<Long> cartIds, String remark, Long userCouponId) {
         Long userId = SecurityUtil.getCurrentUserId();
 
         if (cartIds == null || cartIds.isEmpty()) {
@@ -169,7 +170,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
         order.setStatus(0);
         order.setVersion(1);
 
-        Order createdOrder = orderService.createOrder(order, orderItems, null);
+        Order createdOrder = orderService.createOrder(order, orderItems, userCouponId);
 
         batchRemove(cartIds);
 

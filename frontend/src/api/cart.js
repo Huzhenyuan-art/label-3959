@@ -6,3 +6,4 @@ export const updateCartQuantity = (id, data) => request.put(`/carts/${id}/quanti
 export const removeFromCart = (id) => request.delete(`/carts/${id}`)
 export const batchRemoveCart = (data) => request.delete('/carts/batch', { data })
 export const checkoutCart = (data) => request.post('/carts/checkout', data)
+export const getAvailableCouponsForOrder = (orderAmount) => request.get('/coupons/my/available-for-order', { params: { orderAmount } })

@@ -113,7 +113,7 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="checkoutDialogVisible" title="确认订单" width="500px">
+    <el-dialog v-model="checkoutDialogVisible" title="确认订单" width="560px">
       <div class="checkout-preview">
         <el-descriptions :column="1" border>
           <el-descriptions-item label="商品明细">
@@ -123,10 +123,69 @@
               <span class="checkout-price">¥{{ (item.productPrice * item.quantity).toFixed(2) }}</span>
             </div>
           </el-descriptions-item>
-          <el-descriptions-item label="订单总额">
+          <el-descriptions-item label="商品总额">
             <span class="checkout-total">¥{{ selectedTotal.toFixed(2) }}</span>
           </el-descriptions-item>
         </el-descriptions>
+
+        <div class="coupon-section">
+          <div class="coupon-section-title">
+            <span>选择优惠券</span>
+            <span v-if="loadingCoupons" class="loading-text">加载中...</span>
+          </div>
+          <div v-if="!loadingCoupons && availableCoupons.length === 0" class="no-coupon">
+            暂无可用优惠券
+          </div>
+          <div v-else class="coupon-list">
+            <div
+              v-for="coupon in availableCoupons"
+              :key="coupon.id"
+              class="coupon-item"
+              :class="{ 'coupon-selected': selectedCouponId === coupon.id }"
+              @click="selectedCouponId = selectedCouponId === coupon.id ? null : coupon.id"
+            >
+              <div class="coupon-item-left">
+                <div class="coupon-type">{{ coupon.couponTypeDesc }}</div>
+                <div class="coupon-value">
+                  <span v-if="coupon.couponType === 1">
+                    <small>¥</small>{{ Number(coupon.discountAmount).toFixed(0) }}
+                  </span>
+                  <span v-else>
+                    {{ Number(coupon.discountRate * 10).toFixed(1) }}<small>折</small>
+                  </span>
+                </div>
+                <div class="coupon-condition">
+                  满{{ Number(coupon.minAmount).toFixed(0) }}可用
+                </div>
+              </div>
+              <div class="coupon-item-right">
+                <div class="coupon-name">{{ coupon.couponName }}</div>
+                <div class="coupon-valid">
+                  {{ formatDate(coupon.validStartTime) }} - {{ formatDate(coupon.validEndTime) }}
+                </div>
+              </div>
+              <div v-if="selectedCouponId === coupon.id" class="coupon-check">
+                <el-icon color="#67c23a" size="20"><CircleCheck /></el-icon>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="price-summary">
+          <div class="price-row">
+            <span class="price-label">商品总额：</span>
+            <span class="price-value">¥{{ selectedTotal.toFixed(2) }}</span>
+          </div>
+          <div class="price-row discount" v-if="discountAmount > 0">
+            <span class="price-label">优惠券抵扣：</span>
+            <span class="price-value">-¥{{ discountAmount.toFixed(2) }}</span>
+          </div>
+          <div class="price-row final">
+            <span class="price-label">实付金额：</span>
+            <span class="price-value">¥{{ finalAmount.toFixed(2) }}</span>
+          </div>
+        </div>
+
         <el-form class="checkout-form" label-width="80px">
           <el-form-item label="备注">
             <el-input v-model="checkoutRemark" type="textarea" :rows="2" placeholder="选填" />
@@ -147,13 +206,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Minus, Delete } from '@element-plus/icons-vue'
+import { Plus, Minus, Delete, CircleCheck } from '@element-plus/icons-vue'
 import {
   getMyCart,
   updateCartQuantity,
   removeFromCart,
   batchRemoveCart,
-  checkoutCart
+  checkoutCart,
+  getAvailableCouponsForOrder
 } from '../api/cart'
 
 const router = useRouter()
@@ -163,6 +223,9 @@ const cartList = ref([])
 const selectedIds = ref([])
 const checkoutDialogVisible = ref(false)
 const checkoutRemark = ref('')
+const availableCoupons = ref([])
+const selectedCouponId = ref(null)
+const loadingCoupons = ref(false)
 
 const isAllSelected = computed({
   get: () => cartList.value.length > 0 && selectedIds.value.length === cartList.value.length,
@@ -181,6 +244,23 @@ const selectedTotal = computed(() => {
 
 const checkoutItems = computed(() => {
   return cartList.value.filter(item => selectedIds.value.includes(item.id))
+})
+
+const selectedCoupon = computed(() => {
+  return availableCoupons.value.find(c => c.id === selectedCouponId.value)
+})
+
+const discountAmount = computed(() => {
+  if (!selectedCoupon.value) return 0
+  if (selectedCoupon.value.couponType === 1) {
+    return Number(selectedCoupon.value.discountAmount) || 0
+  } else {
+    return selectedTotal.value * (1 - Number(selectedCoupon.value.discountRate))
+  }
+})
+
+const finalAmount = computed(() => {
+  return Math.max(0, selectedTotal.value - discountAmount.value)
 })
 
 const loadData = async () => {
@@ -240,7 +320,7 @@ const handleBatchDelete = async () => {
   loadData()
 }
 
-const handleCheckout = () => {
+const handleCheckout = async () => {
   if (selectedIds.value.length === 0) {
     ElMessage.warning('请选择要结算的商品')
     return
@@ -253,6 +333,17 @@ const handleCheckout = () => {
     return
   }
   checkoutRemark.value = ''
+  selectedCouponId.value = null
+  availableCoupons.value = []
+  
+  loadingCoupons.value = true
+  try {
+    const res = await getAvailableCouponsForOrder(selectedTotal.value)
+    availableCoupons.value = res.data
+  } finally {
+    loadingCoupons.value = false
+  }
+  
   checkoutDialogVisible.value = true
 }
 
@@ -261,7 +352,8 @@ const confirmCheckout = async () => {
   try {
     const res = await checkoutCart({
       cartIds: selectedIds.value,
-      remark: checkoutRemark.value
+      remark: checkoutRemark.value,
+      userCouponId: selectedCouponId.value
     })
     ElMessage.success('订单创建成功！')
     checkoutDialogVisible.value = false
@@ -273,6 +365,11 @@ const confirmCheckout = async () => {
 
 const goToProducts = () => {
   router.push('/products')
+}
+
+const formatDate = (date) => {
+  if (!date) return ''
+  return new Date(date).toLocaleDateString('zh-CN')
 }
 
 onMounted(loadData)
@@ -405,4 +502,139 @@ onMounted(loadData)
   font-size: 20px;
 }
 .checkout-form { margin-top: 16px; }
+
+.coupon-section {
+  margin-top: 16px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+.coupon-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #303133;
+}
+.loading-text {
+  font-size: 12px;
+  color: #909399;
+  font-weight: normal;
+}
+.no-coupon {
+  text-align: center;
+  padding: 20px;
+  color: #909399;
+  font-size: 14px;
+}
+.coupon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.coupon-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.coupon-item:hover {
+  border-color: #409eff;
+}
+.coupon-item.coupon-selected {
+  border-color: #67c23a;
+  background: #f0f9eb;
+}
+.coupon-item-left {
+  width: 100px;
+  padding-right: 12px;
+  text-align: center;
+  border-right: 1px dashed #e4e7ed;
+}
+.coupon-item .coupon-type {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+.coupon-item .coupon-value {
+  color: #f56c6c;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.coupon-item .coupon-value small {
+  font-size: 14px;
+}
+.coupon-item .coupon-condition {
+  font-size: 11px;
+  color: #909399;
+}
+.coupon-item-right {
+  flex: 1;
+  padding-left: 12px;
+}
+.coupon-item-right .coupon-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 4px;
+}
+.coupon-item-right .coupon-valid {
+  font-size: 12px;
+  color: #909399;
+}
+.coupon-check {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.price-summary {
+  margin-top: 16px;
+  padding: 16px;
+  background: #fffbe6;
+  border: 1px solid #faecd8;
+  border-radius: 8px;
+}
+.price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+.price-row .price-label {
+  font-size: 14px;
+  color: #606266;
+}
+.price-row .price-value {
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
+}
+.price-row.discount .price-value {
+  color: #67c23a;
+}
+.price-row.final {
+  border-top: 1px dashed #e4e7ed;
+  margin-top: 6px;
+  padding-top: 12px;
+}
+.price-row.final .price-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+.price-row.final .price-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f56c6c;
+}
 </style>

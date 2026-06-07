@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/users/**").hasRole(RoleEnum.ADMIN.getCode())
+                        .requestMatchers("/api/coupons/templates/available").authenticated()
                         .requestMatchers("/api/coupons/templates/**").hasRole(RoleEnum.ADMIN.getCode())
                         .requestMatchers("/api/coupons/**").authenticated()
                         .requestMatchers("/api/products/**").authenticated()
