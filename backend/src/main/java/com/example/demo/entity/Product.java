@@ -34,4 +34,7 @@ public class Product {
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedTime;
+
+    @TableField(exist = false)
+    private Integer orderCount;
 }

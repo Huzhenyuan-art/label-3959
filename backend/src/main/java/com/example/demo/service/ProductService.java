@@ -7,6 +7,7 @@ import com.example.demo.entity.Product;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 public interface ProductService extends IService<Product> {
 
@@ -19,4 +20,8 @@ public interface ProductService extends IService<Product> {
     void deleteProduct(Long id);
 
     List<CategoryStatsDTO> getCategoryStats(String name, String category, BigDecimal minPrice, BigDecimal maxPrice, Integer minStock, Integer maxStock);
+
+    Map<Long, Integer> getOrderReferenceCounts(List<Long> productIds);
+
+    int countOrderReferences(Long productId);
 }

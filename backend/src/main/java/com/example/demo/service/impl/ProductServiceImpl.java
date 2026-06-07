@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.demo.dto.CategoryStatsDTO;
+import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.Product;
+import com.example.demo.mapper.OrderItemMapper;
 import com.example.demo.mapper.ProductMapper;
 import com.example.demo.service.NotificationService;
 import com.example.demo.service.ProductService;
@@ -35,12 +37,12 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
 
     private final ProductMapper productMapper;
     private final NotificationService notificationService;
+    private final OrderItemMapper orderItemMapper;
 
     @Override
     public IPage<Product> pageProducts(int current, int size, String name, String category,
                                        BigDecimal minPrice, BigDecimal maxPrice,
                                        Integer minStock, Integer maxStock) {
-        // 演示：QueryWrapper 多条件分页（含价格区间、库存区间过滤）
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
                 .like(StringUtils.hasText(name), Product::getName, name)
                 .eq(StringUtils.hasText(category), Product::getCategory, category)
@@ -50,7 +52,17 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
                 .le(maxStock != null, Product::getStock, maxStock)
                 .orderByDesc(Product::getCreatedTime);
 
-        return page(new Page<>(current, size), wrapper);
+        IPage<Product> page = page(new Page<>(current, size), wrapper);
+
+        if (page.getRecords() != null && !page.getRecords().isEmpty()) {
+            List<Long> productIds = page.getRecords().stream()
+                    .map(Product::getId)
+                    .collect(Collectors.toList());
+            Map<Long, Integer> orderCountMap = getOrderReferenceCounts(productIds);
+            page.getRecords().forEach(p -> p.setOrderCount(orderCountMap.getOrDefault(p.getId(), 0)));
+        }
+
+        return page;
     }
 
     @Override
@@ -86,15 +98,45 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
 
     @Override
     public void deleteProduct(Long id) {
+        int orderCount = countOrderReferences(id);
+        if (orderCount > 0) {
+            throw new IllegalArgumentException("该商品已被 " + orderCount + " 个订单使用，无法删除");
+        }
         removeById(id);
         logger.info("删除商品: id={}", id);
+    }
+
+    @Override
+    public Map<Long, Integer> getOrderReferenceCounts(List<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<OrderItem>()
+                .in(OrderItem::getProductId, productIds)
+                .select(OrderItem::getProductId);
+        List<OrderItem> items = orderItemMapper.selectList(wrapper);
+        return items.stream()
+                .collect(Collectors.groupingBy(
+                        OrderItem::getProductId,
+                        Collectors.collectingAndThen(Collectors.counting(), Long::intValue)
+                ));
+    }
+
+    @Override
+    public int countOrderReferences(Long productId) {
+        if (productId == null) {
+            return 0;
+        }
+        LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<OrderItem>()
+                .eq(OrderItem::getProductId, productId);
+        Long count = orderItemMapper.selectCount(wrapper);
+        return count != null ? count.intValue() : 0;
     }
 
     @Override
     public List<CategoryStatsDTO> getCategoryStats(String name, String category,
                                                    BigDecimal minPrice, BigDecimal maxPrice,
                                                    Integer minStock, Integer maxStock) {
-        // 先按过滤条件查询商品，再在内存中分组统计（保持与分页查询一致的过滤逻辑）
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
                 .like(StringUtils.hasText(name), Product::getName, name)
                 .eq(StringUtils.hasText(category), Product::getCategory, category)

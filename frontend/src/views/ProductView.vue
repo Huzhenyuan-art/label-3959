@@ -106,7 +106,10 @@
                   查看评价
                 </el-button>
                 <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-                <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+                <el-tooltip v-if="row.orderCount > 0" content="该商品已被订单使用，无法删除" placement="top">
+                  <el-button link type="danger" size="small" :disabled="row.orderCount > 0" @click="handleDelete(row)">删除</el-button>
+                </el-tooltip>
+                <el-button v-else link type="danger" size="small" :disabled="row.orderCount > 0" @click="handleDelete(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -426,11 +429,21 @@ const handleSubmit = async () => {
 }
 
 const handleDelete = async (row) => {
+  if (row.orderCount > 0) {
+    ElMessage.warning(`该商品已被 ${row.orderCount} 个订单使用，无法删除`)
+    return
+  }
   await ElMessageBox.confirm(`确定删除商品「${row.name}」？`, '确认')
-  await deleteProduct(row.id)
-  ElMessage.success('删除成功')
-  loadData()
-  loadStats()
+  try {
+    await deleteProduct(row.id)
+    ElMessage.success('删除成功')
+    loadData()
+    loadStats()
+  } catch (e) {
+    if (e.response && e.response.data && e.response.data.message) {
+      ElMessage.error(e.response.data.message)
+    }
+  }
 }
 
 const openAddToCart = (row) => {
