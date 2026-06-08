@@ -20,8 +20,8 @@ export const API_ERROR_MESSAGES = {
 }
 
 const request = axios.create({
-  baseURL: '/api',
-  timeout: 10000
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT) || 10000
 })
 
 request.interceptors.request.use(

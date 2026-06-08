@@ -6,6 +6,7 @@ backend/target/
 *.ear
 .idea/
 *.iml
+backend/logs/
 
 # Node
 frontend/node_modules/
@@ -15,6 +16,9 @@ frontend/package-lock.json
 # Environment
 .env
 .env.local
+frontend/.env.local
+backend/src/main/resources/application-local.yml
+backend/src/main/resources/application-private.yml
 
 # OS
 .DS_Store
@@ -23,3 +27,16 @@ Thumbs.db
 # IDE
 .vscode/
 *.swp
+
+# Docker
+*.dockerignore
+docker-compose.override.yml
+
+# CI/CD
+.github/workflows/*.disabled
+
+# Coverage & Reports
+backend/coverage/
+backend/surefire-reports/
+*.log
+

@@ -1,32 +1,72 @@
+x-common-env: &common-env
+  TZ: ${TZ:-Asia/Shanghai}
+  LANG: C.UTF-8
+
+x-backend-env: &backend-env
+  <<: *common-env
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+  SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:mysql://db:3306/mybatis_demo?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+  SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-root}
+  SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-root123}
+  DB_MAX_POOL_SIZE: ${DB_MAX_POOL_SIZE:-10}
+  DB_MIN_IDLE: ${DB_MIN_IDLE:-5}
+  JWT_SECRET: ${JWT_SECRET:-mybatis-plus-demo-secret-key-1234567890abcdef-change-me-in-prod}
+  JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-24}
+  JWT_ISSUER: ${JWT_ISSUER:-mybatis-plus-demo}
+  LOG_LEVEL_APP: ${LOG_LEVEL_APP:-info}
+  LOG_LEVEL_MP: ${LOG_LEVEL_MP:-warn}
+  ACTUATOR_ENDPOINTS: ${ACTUATOR_ENDPOINTS:-health,info,prometheus}
+  ACTUATOR_HEALTH_DETAILS: ${ACTUATOR_HEALTH_DETAILS:-never}
+  JAVA_OPTS: ${JAVA_OPTS:--Xms512m -Xmx1024m -XX:+UseG1GC}
+
 services:
   # ============================
   # MySQL 数据库
   # ============================
   db:
-    image: mysql:8.0
+    image: mysql:8.0.37
     container_name: label-3959-db
+    restart: unless-stopped
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --init-connect=SET NAMES utf8mb4
+      - --default-authentication-plugin=mysql_native_password
+      - --max-connections=500
+      - --innodb-buffer-pool-size=512M
+      - --slow-query-log=1
+      - --long-query-time=2
     environment:
-      MYSQL_ROOT_PASSWORD: root123
-      MYSQL_DATABASE: mybatis_demo
+      <<: *common-env
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mybatis_demo}
       MYSQL_ROOT_HOST: "%"
-      TZ: Asia/Shanghai
     ports:
-      - "33959:3306"
+      - "${DB_PORT:-33959}:3306"
     volumes:
       - db_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot123 && mysql -h localhost -uroot -proot123 -e 'USE mybatis_demo'"]
-      interval: 5s
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p${MYSQL_ROOT_PASSWORD:-root123} -s && mysql -h localhost -uroot -p${MYSQL_ROOT_PASSWORD:-root123} -e 'USE ${MYSQL_DATABASE:-mybatis_demo}; SELECT 1' -s"]
+      interval: 10s
       timeout: 5s
-      retries: 15
-      start_period: 40s
+      retries: 10
+      start_period: 45s
     networks:
       - app-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
 
   # ============================
   # Spring Boot 后端
@@ -35,20 +75,46 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        PROFILE: ${BUILD_PROFILE:-prod}
+        SKIP_TESTS: ${SKIP_TESTS:-true}
+      cache_from:
+        - type=local,src=./.docker-cache/backend-deps
+        - type=local,src=./.docker-cache/backend-build
+      cache_to:
+        - type=local,dest=./.docker-cache/backend-deps,mode=max
+        - type=local,dest=./.docker-cache/backend-build,mode=max
     container_name: label-3959-backend
     restart: unless-stopped
     ports:
-      - "8959:8080"
+      - "${BACKEND_PORT:-8959}:8080"
+      - "${BACKEND_MGMT_PORT:-9959}:9090"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/mybatis_demo?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root123
-      TZ: Asia/Shanghai
+      <<: *backend-env
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health/liveness || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
     networks:
       - app-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 768M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
 
   # ============================
   # Vue + Nginx 前端
@@ -57,17 +123,51 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        BUILD_MODE: ${FRONTEND_BUILD_MODE:-production}
+      cache_from:
+        - type=local,src=./.docker-cache/frontend-deps
+        - type=local,src=./.docker-cache/frontend-build
+      cache_to:
+        - type=local,dest=./.docker-cache/frontend-deps,mode=max
+        - type=local,dest=./.docker-cache/frontend-build,mode=max
     container_name: label-3959-frontend
+    restart: unless-stopped
     ports:
-      - "3959:80"
+      - "${FRONTEND_PORT:-3959}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - app-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
 
 volumes:
   db_data:
+    driver: local
 
 networks:
   app-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+

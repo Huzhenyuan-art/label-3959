@@ -2,29 +2,17 @@ server:
   port: 8080
 
 spring:
-  profiles:
-    active: test
   datasource:
     url: ${TEST_DB_URL:jdbc:mysql://localhost:3306/mybatis_demo_test?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
     username: ${TEST_DB_USERNAME:root}
     password: ${TEST_DB_PASSWORD:root123}
-    driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      connection-timeout: 30000
-      initialization-fail-timeout: 120000
       maximum-pool-size: 5
+      minimum-idle: 2
 
 mybatis-plus:
   configuration:
-    map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
-  global-config:
-    db-config:
-      logic-delete-field: deleted
-      logic-delete-value: 1
-      logic-not-delete-value: 0
-      id-type: auto
-  mapper-locations: classpath:mapper/*.xml
 
 logging:
   level:
@@ -35,13 +23,12 @@ logging:
 jwt:
   secret: ${TEST_JWT_SECRET:mybatis-plus-demo-test-secret-key-0987654321fedcba}
   expire-hours: 12
-  issuer: test-mybatis-plus-demo
 
 management:
   endpoints:
     web:
       exposure:
-        include: "health,info"
+        include: "health,info,metrics"
   endpoint:
     health:
-      show-details: never
+      show-details: when-authorized
